@@ -17,7 +17,7 @@ const Index = () => {
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-2">
               <Home className="h-8 w-8 text-indigo-600" />
-              <h1 className="text-2xl font-bold text-gray-900">RentEase</h1>
+              <h1 className="text-2xl font-bold text-gray-900">StayGlobal</h1>
             </div>
             <nav className="hidden md:flex space-x-8">
               <button className="text-gray-600 hover:text-indigo-600 transition-colors">
