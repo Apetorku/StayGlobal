@@ -141,7 +141,7 @@ const Landing = () => {
               size="lg" 
               variant="outline"
               className="w-full sm:w-auto px-8 py-4 text-lg"
-              onClick={() => navigate("/")}
+              onClick={() => navigate("/search")}
             >
               <Users className="mr-2 h-5 w-5" />
               Find Apartments
