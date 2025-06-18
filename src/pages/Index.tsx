@@ -4,10 +4,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ApartmentSearch from "@/components/ApartmentSearch";
 import MyBookings from "@/components/MyBookings";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Home, Search, Calendar, MessageSquare } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Home, Search, Calendar, MessageSquare, Building } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState("search");
+  const navigate = useNavigate();
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
@@ -19,7 +22,15 @@ const Index = () => {
               <Home className="h-8 w-8 text-indigo-600" />
               <h1 className="text-2xl font-bold text-gray-900">StayGlobal</h1>
             </div>
-            <nav className="hidden md:flex space-x-8">
+            <nav className="flex items-center space-x-4">
+              <Button
+                variant="outline"
+                onClick={() => navigate("/owner")}
+                className="flex items-center gap-2"
+              >
+                <Building className="h-4 w-4" />
+                Owner Dashboard
+              </Button>
               <button className="text-gray-600 hover:text-indigo-600 transition-colors">
                 Profile
               </button>
