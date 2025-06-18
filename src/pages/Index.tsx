@@ -5,7 +5,7 @@ import ApartmentSearch from "@/components/ApartmentSearch";
 import MyBookings from "@/components/MyBookings";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Home, Search, Calendar, MessageSquare, Building } from "lucide-react";
+import { Home, Search, Calendar, MessageSquare, Building, Shield } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 const Index = () => {
@@ -30,6 +30,14 @@ const Index = () => {
               >
                 <Building className="h-4 w-4" />
                 Owner Dashboard
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => navigate("/admin")}
+                className="flex items-center gap-2"
+              >
+                <Shield className="h-4 w-4" />
+                Admin Panel
               </Button>
               <button className="text-gray-600 hover:text-indigo-600 transition-colors">
                 Profile
