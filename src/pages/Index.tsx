@@ -1,6 +1,8 @@
 
 import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
+import { useUser, UserButton } from "@clerk/clerk-react";
 import ApartmentSearch from "@/components/ApartmentSearch";
 import MyBookings from "@/components/MyBookings";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,6 +10,7 @@ import { Home, Search, Calendar, MessageSquare } from "lucide-react";
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState("search");
+  const { user } = useUser();
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
@@ -20,12 +23,17 @@ const Index = () => {
               <h1 className="text-2xl font-bold text-gray-900">StayGlobal</h1>
             </div>
             <nav className="flex items-center space-x-4">
-              <button className="text-gray-600 hover:text-indigo-600 transition-colors">
-                Profile
-              </button>
-              <button className="text-gray-600 hover:text-indigo-600 transition-colors">
-                Help
-              </button>
+              <span className="text-gray-600">
+                Welcome, {user?.firstName || 'User'}!
+              </span>
+              <UserButton
+                afterSignOutUrl="/"
+                appearance={{
+                  elements: {
+                    avatarBox: "h-8 w-8"
+                  }
+                }}
+              />
             </nav>
           </div>
         </div>

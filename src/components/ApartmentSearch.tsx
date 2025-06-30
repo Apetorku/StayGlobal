@@ -1,39 +1,30 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useQuery } from "@tanstack/react-query";
+import { apartmentService, type ApartmentFilters } from "@/services/apartmentService";
 import ApartmentCard from "./ApartmentCard";
-import { Search, MapPin } from "lucide-react";
+import { Search, MapPin, Loader2 } from "lucide-react";
+import { globalCountries } from "@/data/countries";
 
-// Mock data for demonstration
-const countries = [
-  { id: "us", name: "United States" },
-  { id: "uk", name: "United Kingdom" },
-  { id: "fr", name: "France" },
-  { id: "de", name: "Germany" },
-];
+// Simple regions mapping for common countries
+const getRegionsForCountry = (countryName: string): string[] => {
+  const regionsMap: Record<string, string[]> = {
+    'Ghana': ['Greater Accra', 'Ashanti', 'Northern', 'Western', 'Central', 'Eastern', 'Volta', 'Upper East', 'Upper West', 'Brong-Ahafo'],
+    'Nigeria': ['Lagos', 'Abuja', 'Kano', 'Rivers', 'Oyo', 'Kaduna', 'Anambra', 'Plateau', 'Cross River', 'Delta'],
+    'Kenya': ['Nairobi', 'Mombasa', 'Kisumu', 'Nakuru', 'Eldoret', 'Thika', 'Malindi', 'Kitale', 'Garissa', 'Kakamega'],
+    'South Africa': ['Gauteng', 'Western Cape', 'KwaZulu-Natal', 'Eastern Cape', 'Limpopo', 'Mpumalanga', 'North West', 'Free State', 'Northern Cape'],
+    'United States': ['California', 'Texas', 'Florida', 'New York', 'Pennsylvania', 'Illinois', 'Ohio', 'Georgia', 'North Carolina', 'Michigan'],
+    'United Kingdom': ['England', 'Scotland', 'Wales', 'Northern Ireland'],
+    'Canada': ['Ontario', 'Quebec', 'British Columbia', 'Alberta', 'Manitoba', 'Saskatchewan', 'Nova Scotia', 'New Brunswick', 'Newfoundland and Labrador', 'Prince Edward Island'],
+    'Australia': ['New South Wales', 'Victoria', 'Queensland', 'Western Australia', 'South Australia', 'Tasmania', 'Australian Capital Territory', 'Northern Territory']
+  };
 
-const regions = {
-  us: [
-    { id: "ny", name: "New York" },
-    { id: "ca", name: "California" },
-    { id: "fl", name: "Florida" },
-  ],
-  uk: [
-    { id: "london", name: "London" },
-    { id: "manchester", name: "Manchester" },
-    { id: "birmingham", name: "Birmingham" },
-  ],
-};
-
-const towns = {
-  ny: ["Manhattan", "Brooklyn", "Queens"],
-  ca: ["Los Angeles", "San Francisco", "San Diego"],
-  london: ["Westminster", "Camden", "Kensington"],
-  manchester: ["City Centre", "Northern Quarter", "Ancoats"],
+  return regionsMap[countryName] || ['Central Region', 'Northern Region', 'Southern Region', 'Eastern Region', 'Western Region'];
 };
 
 const mockApartments = [
@@ -76,20 +67,43 @@ const ApartmentSearch = () => {
   const [selectedCountry, setSelectedCountry] = useState("");
   const [selectedRegion, setSelectedRegion] = useState("");
   const [selectedTown, setSelectedTown] = useState("");
-  const [searchResults, setSearchResults] = useState(mockApartments);
+  const [filters, setFilters] = useState<ApartmentFilters>({});
+
+  // Fetch apartments using React Query
+  const { data: apartmentData, isLoading, error, refetch } = useQuery({
+    queryKey: ['apartments', filters],
+    queryFn: () => apartmentService.getApartments(filters),
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+
+  // Reset region and town when country changes
+  useEffect(() => {
+    setSelectedRegion("");
+    setSelectedTown("");
+  }, [selectedCountry]);
+
+  // Reset town when region changes
+  useEffect(() => {
+    setSelectedTown("");
+  }, [selectedRegion]);
 
   const handleSearch = () => {
-    // Filter apartments based on selected criteria
-    let filtered = mockApartments;
-    
-    if (selectedCountry || selectedRegion || selectedTown) {
-      // In a real app, this would filter based on actual location data
-      setSearchResults(filtered);
-    }
+    const newFilters: ApartmentFilters = {};
+
+    if (selectedCountry) newFilters.country = selectedCountry;
+    if (selectedRegion) newFilters.region = selectedRegion;
+    if (selectedTown) newFilters.town = selectedTown;
+
+    setFilters(newFilters);
   };
 
-  const availableRegions = selectedCountry ? regions[selectedCountry] || [] : [];
-  const availableTowns = selectedRegion ? towns[selectedRegion] || [] : [];
+  // Get available regions for selected country
+  const availableRegions = selectedCountry ? getRegionsForCountry(selectedCountry) : [];
+
+  // Get available towns for selected region (for now, we'll use a simple list)
+  const availableTowns = selectedRegion ? [
+    "Accra", "Kumasi", "Tamale", "Cape Coast", "Sekondi-Takoradi", "Sunyani", "Koforidua", "Ho", "Wa", "Bolgatanga"
+  ] : [];
 
   return (
     <div className="space-y-6">
@@ -113,8 +127,8 @@ const ApartmentSearch = () => {
                   <SelectValue placeholder="Select country" />
                 </SelectTrigger>
                 <SelectContent>
-                  {countries.map((country) => (
-                    <SelectItem key={country.id} value={country.id}>
+                  {globalCountries.map((country) => (
+                    <SelectItem key={country.code} value={country.name}>
                       {country.name}
                     </SelectItem>
                   ))}
@@ -134,8 +148,8 @@ const ApartmentSearch = () => {
                 </SelectTrigger>
                 <SelectContent>
                   {availableRegions.map((region) => (
-                    <SelectItem key={region.id} value={region.id}>
-                      {region.name}
+                    <SelectItem key={region} value={region}>
+                      {region}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -174,14 +188,45 @@ const ApartmentSearch = () => {
 
       {/* Search Results */}
       <div className="space-y-4">
-        <h3 className="text-lg font-semibold">
-          Found {searchResults.length} apartments
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {searchResults.map((apartment) => (
-            <ApartmentCard key={apartment.id} apartment={apartment} />
-          ))}
-        </div>
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
+            <span className="ml-2 text-gray-600">Loading apartments...</span>
+          </div>
+        ) : error ? (
+          <div className="text-center py-12">
+            <p className="text-red-600 mb-4">Failed to load apartments</p>
+            <Button onClick={() => refetch()} variant="outline">
+              Try Again
+            </Button>
+          </div>
+        ) : (
+          <>
+            <h3 className="text-lg font-semibold">
+              Found {apartmentData?.pagination.total || 0} apartments
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {apartmentData?.apartments.map((apartment) => (
+                <ApartmentCard key={apartment._id} apartment={{
+                  id: apartment._id,
+                  title: apartment.title,
+                  location: `${apartment.location.town}, ${apartment.location.region}`,
+                  price: apartment.price,
+                  availableRooms: apartment.availableRooms,
+                  totalRooms: apartment.totalRooms,
+                  image: apartment.images[0] || '/placeholder.svg',
+                  rating: apartment.rating,
+                  amenities: apartment.amenities
+                }} />
+              ))}
+            </div>
+            {(!apartmentData?.apartments || apartmentData.apartments.length === 0) && (
+              <div className="text-center py-12">
+                <p className="text-gray-600">No apartments found. Try adjusting your search criteria.</p>
+              </div>
+            )}
+          </>
+        )}
       </div>
     </div>
   );

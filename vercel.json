@@ -1,0 +1,46 @@
+{
+  "version": 2,
+  "name": "apartment-rental-platform",
+  "builds": [
+    {
+      "src": "package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "dist"
+      }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/assets/(.*)",
+      "headers": {
+        "cache-control": "public, max-age=31536000, immutable"
+      }
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
+    }
+  ],
+  "env": {
+    "VITE_CLERK_PUBLISHABLE_KEY": "@clerk_publishable_key",
+    "VITE_API_URL": "@api_url"
+  },
+  "build": {
+    "env": {
+      "VITE_CLERK_PUBLISHABLE_KEY": "@clerk_publishable_key",
+      "VITE_API_URL": "@api_url"
+    }
+  },
+  "functions": {
+    "app/api/**/*.ts": {
+      "runtime": "nodejs18.x"
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/$1"
+    }
+  ]
+}

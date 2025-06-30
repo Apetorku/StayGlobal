@@ -8,9 +8,15 @@
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "lint:fix": "eslint . --fix",
+    "preview": "vite preview",
+    "deploy": "powershell -ExecutionPolicy Bypass -File deploy.ps1",
+    "deploy:prod": "vercel --prod",
+    "deploy:preview": "vercel",
+    "vercel-build": "npm run build"
   },
   "dependencies": {
+    "@clerk/clerk-react": "^5.32.1",
     "@hookform/resolvers": "^3.9.0",
     "@radix-ui/react-accordion": "^1.2.0",
     "@radix-ui/react-alert-dialog": "^1.1.1",

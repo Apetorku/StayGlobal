@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import BookingModal from "./BookingModal";
+import BookingModal from "./WorkingBookingModal";
 import { Star, Users, MapPin, Wifi, Car, Coffee, Snowflake } from "lucide-react";
 
 interface Apartment {
@@ -112,7 +112,7 @@ const ApartmentCard = ({ apartment }: ApartmentCardProps) => {
         </CardFooter>
       </Card>
 
-      <BookingModal 
+      <BookingModal
         apartment={apartment}
         isOpen={showBooking}
         onClose={() => setShowBooking(false)}

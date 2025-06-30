@@ -1,4 +1,30 @@
-# Welcome to your Lovable project
+# 🏠 Apartment Rental Platform
+
+A modern apartment rental platform built with React, TypeScript, and Vite.
+
+## 🚀 Quick Deploy to Vercel
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/yourusername/apartment-rental-platform&env=VITE_CLERK_PUBLISHABLE_KEY,VITE_API_URL&envDescription=Required%20environment%20variables&envLink=https://github.com/yourusername/apartment-rental-platform/blob/main/.env.production)
+
+### Deploy with our automated script:
+
+```bash
+# Install Vercel CLI (if not already installed)
+npm install -g vercel
+
+# Run the deployment script
+npm run deploy
+```
+
+### Manual deployment:
+
+```bash
+# Build the project
+npm run build
+
+# Deploy to Vercel
+vercel --prod
+```
 
 ## Project info
 

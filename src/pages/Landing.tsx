@@ -3,14 +3,54 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useNavigate } from "react-router-dom";
+import { useAuth, SignInButton, SignUpButton } from "@clerk/clerk-react";
+import { useQuery } from "@tanstack/react-query";
+import { apartmentService } from "@/services/apartmentService";
 import { Home, Shield, MessageSquare, Clock, Star, MapPin, Users } from "lucide-react";
 import ApartmentCard from "@/components/ApartmentCard";
 
 const Landing = () => {
   const navigate = useNavigate();
+  const { isSignedIn } = useAuth();
 
-  // Mock popular apartments data
-  const popularApartments = [
+  const handleProtectedNavigation = (path: string) => {
+    if (isSignedIn) {
+      navigate(path);
+    }
+    // If user not signed in, the SignInButton/SignUpButton will handle the authentication
+  };
+
+  // Fetch popular apartments from database
+  const { data: apartmentData, isLoading, error } = useQuery({
+    queryKey: ['popular-apartments'],
+    queryFn: async () => {
+      console.log('Fetching apartments for landing page...');
+      const result = await apartmentService.getApartments({ limit: 6 });
+      console.log('Apartments fetched:', result);
+      return result;
+    },
+    staleTime: 10 * 60 * 1000, // 10 minutes
+  });
+
+  console.log('Landing page - apartmentData:', apartmentData);
+  console.log('Landing page - isLoading:', isLoading);
+  console.log('Landing page - error:', error);
+
+  const popularApartments = apartmentData?.apartments?.map(apartment => ({
+    _id: apartment._id,
+    id: apartment._id, // For compatibility with ApartmentCard
+    title: apartment.title,
+    location: `${apartment.location.town}, ${apartment.location.region}`,
+    price: apartment.price,
+    availableRooms: apartment.availableRooms,
+    totalRooms: apartment.totalRooms,
+    image: apartment.images[0] || "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=800",
+    rating: apartment.rating,
+    amenities: apartment.amenities
+  })) || [];
+
+  // Fallback mock data in case API fails
+  const fallbackApartments = [
     {
       id: 1,
       title: "Modern Downtown Loft",
@@ -112,6 +152,25 @@ const Landing = () => {
               <Home className="h-8 w-8 text-indigo-600" />
               <h1 className="text-2xl font-bold text-gray-900">StayGlobal</h1>
             </div>
+            <div className="flex items-center space-x-4">
+              {isSignedIn ? (
+                <Button
+                  variant="outline"
+                  onClick={() => navigate('/search')}
+                >
+                  Dashboard
+                </Button>
+              ) : (
+                <div className="flex items-center space-x-2">
+                  <SignInButton mode="modal">
+                    <Button variant="outline">Sign In</Button>
+                  </SignInButton>
+                  <SignUpButton mode="modal">
+                    <Button>Sign Up</Button>
+                  </SignUpButton>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </header>
@@ -129,32 +188,74 @@ const Landing = () => {
           
           {/* Action Buttons */}
           <div className="flex flex-col sm:flex-row gap-6 justify-center items-center mb-16">
-            <Button 
-              size="lg" 
-              className="w-full sm:w-auto px-8 py-4 text-lg"
-              onClick={() => navigate("/owner")}
-            >
-              <Home className="mr-2 h-5 w-5" />
-              List Your Apartment
-            </Button>
-            <Button 
-              size="lg" 
-              variant="outline"
-              className="w-full sm:w-auto px-8 py-4 text-lg"
-              onClick={() => navigate("/search")}
-            >
-              <Users className="mr-2 h-5 w-5" />
-              Find Apartments
-            </Button>
-            <Button 
-              size="lg" 
-              variant="secondary"
-              className="w-full sm:w-auto px-8 py-4 text-lg"
-              onClick={() => navigate("/admin")}
-            >
-              <Shield className="mr-2 h-5 w-5" />
-              Admin Dashboard
-            </Button>
+            {isSignedIn ? (
+              <>
+                <Button
+                  size="lg"
+                  className="w-full sm:w-auto px-8 py-4 text-lg"
+                  onClick={() => navigate("/owner")}
+                >
+                  <Home className="mr-2 h-5 w-5" />
+                  List Your Apartment
+                </Button>
+                <Button
+                  size="lg"
+                  variant="outline"
+                  className="w-full sm:w-auto px-8 py-4 text-lg"
+                  onClick={() => navigate("/search")}
+                >
+                  <Users className="mr-2 h-5 w-5" />
+                  Find Apartments
+                </Button>
+                <Button
+                  size="lg"
+                  variant="secondary"
+                  className="w-full sm:w-auto px-8 py-4 text-lg"
+                  onClick={() => navigate("/admin")}
+                >
+                  <Shield className="mr-2 h-5 w-5" />
+                  Admin Dashboard
+                </Button>
+              </>
+            ) : (
+              <>
+                <SignUpButton mode="modal" afterSignUpUrl="/owner">
+                  <div>
+                    <Button
+                      size="lg"
+                      className="w-full sm:w-auto px-8 py-4 text-lg"
+                    >
+                      <Home className="mr-2 h-5 w-5" />
+                      List Your Apartment
+                    </Button>
+                  </div>
+                </SignUpButton>
+                <SignUpButton mode="modal" afterSignUpUrl="/search">
+                  <div>
+                    <Button
+                      size="lg"
+                      variant="outline"
+                      className="w-full sm:w-auto px-8 py-4 text-lg"
+                    >
+                      <Users className="mr-2 h-5 w-5" />
+                      Find Apartments
+                    </Button>
+                  </div>
+                </SignUpButton>
+                <SignInButton mode="modal" afterSignInUrl="/admin">
+                  <div>
+                    <Button
+                      size="lg"
+                      variant="secondary"
+                      className="w-full sm:w-auto px-8 py-4 text-lg"
+                    >
+                      <Shield className="mr-2 h-5 w-5" />
+                      Admin Dashboard
+                    </Button>
+                  </div>
+                </SignInButton>
+              </>
+            )}
           </div>
         </div>
       </section>
@@ -168,9 +269,21 @@ const Landing = () => {
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {popularApartments.map((apartment) => (
-              <ApartmentCard key={apartment.id} apartment={apartment} />
-            ))}
+            {isLoading ? (
+              // Loading skeleton
+              Array.from({ length: 6 }).map((_, index) => (
+                <div key={index} className="bg-gray-200 animate-pulse rounded-lg h-96"></div>
+              ))
+            ) : popularApartments.length > 0 ? (
+              popularApartments.map((apartment) => (
+                <ApartmentCard key={apartment._id || apartment.id} apartment={apartment} />
+              ))
+            ) : (
+              // Fallback message
+              <div className="col-span-full text-center py-12">
+                <p className="text-gray-600">No apartments available at the moment.</p>
+              </div>
+            )}
           </div>
         </div>
       </section>

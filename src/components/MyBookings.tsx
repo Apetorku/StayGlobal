@@ -4,8 +4,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@clerk/clerk-react";
+import { bookingService } from "@/services/bookingService";
 import ChatModal from "./ChatModal";
-import { Download, MessageSquare, Calendar, MapPin, Ticket, Clock } from "lucide-react";
+import { Download, MessageSquare, Calendar, MapPin, Ticket, Clock, Loader2 } from "lucide-react";
 
 // Mock booking data
 const mockBookings = [
@@ -38,8 +41,33 @@ const mockBookings = [
 ];
 
 const MyBookings = () => {
-  const [selectedBooking, setSelectedBooking] = useState<number | null>(null);
+  const [selectedBooking, setSelectedBooking] = useState<string | null>(null);
   const [showChat, setShowChat] = useState(false);
+  const { getToken } = useAuth();
+  const queryClient = useQueryClient();
+
+  // Fetch user's bookings
+  const { data: bookingData, isLoading, error, refetch } = useQuery({
+    queryKey: ['my-bookings'],
+    queryFn: async () => {
+      const token = await getToken();
+      if (!token) throw new Error('No authentication token');
+      return bookingService.getMyBookings(token);
+    },
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+
+  // Cancel booking mutation
+  const cancelBookingMutation = useMutation({
+    mutationFn: async (bookingId: string) => {
+      const token = await getToken();
+      if (!token) throw new Error('No authentication token');
+      return bookingService.cancelBooking(bookingId, token);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['my-bookings'] });
+    },
+  });
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -54,7 +82,7 @@ const MyBookings = () => {
     }
   };
 
-  const downloadTicket = (booking: any) => {
+  const downloadTicket = (booking: { ticketCode: string; apartmentId: { title: string }; guestName: string; checkIn: string; checkOut: string; guests: number; totalAmount: number }) => {
     // In a real app, this would generate a PDF ticket
     const ticketContent = `
       BOOKING TICKET
@@ -83,7 +111,7 @@ const MyBookings = () => {
     URL.revokeObjectURL(url);
   };
 
-  const openChat = (bookingId: number) => {
+  const openChat = (bookingId: string) => {
     setSelectedBooking(bookingId);
     setShowChat(true);
   };
@@ -110,19 +138,32 @@ const MyBookings = () => {
         </TabsList>
 
         <TabsContent value="all" className="space-y-4">
-          {mockBookings.map((booking) => (
-            <Card key={booking.id} className="overflow-hidden">
+          {isLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
+              <span className="ml-2 text-gray-600">Loading bookings...</span>
+            </div>
+          ) : error ? (
+            <div className="text-center py-12">
+              <p className="text-red-600 mb-4">Failed to load bookings</p>
+              <Button onClick={() => refetch()} variant="outline">
+                Try Again
+              </Button>
+            </div>
+          ) : bookingData?.bookings && bookingData.bookings.length > 0 ? (
+            bookingData.bookings.map((booking) => (
+              <Card key={booking._id} className="overflow-hidden">
               <CardContent className="p-0">
                 <div className="flex flex-col md:flex-row">
                   {/* Image */}
                   <div className="md:w-1/3">
                     <img
-                      src={booking.apartmentImage}
-                      alt={booking.apartmentTitle}
+                      src={booking.apartmentId?.images?.[0] || '/placeholder.svg'}
+                      alt={booking.apartmentId?.title || 'Apartment'}
                       className="w-full h-48 md:h-full object-cover"
                     />
                   </div>
-                  
+
                   {/* Content */}
                   <div className="md:w-2/3 p-6">
                     <div className="flex flex-col h-full">
@@ -130,29 +171,32 @@ const MyBookings = () => {
                         <div className="flex justify-between items-start mb-4">
                           <div>
                             <h3 className="text-xl font-semibold text-gray-900">
-                              {booking.apartmentTitle}
+                              {booking.apartmentId?.title || 'Apartment'}
                             </h3>
                             <div className="flex items-center text-gray-600 mt-1">
                               <MapPin className="h-4 w-4 mr-1" />
-                              {booking.location}
+                              {booking.apartmentId?.location ?
+                                `${booking.apartmentId.location.town}, ${booking.apartmentId.location.region}` :
+                                'Location not available'
+                              }
                             </div>
                           </div>
-                          <Badge className={getStatusColor(booking.status)}>
-                            {booking.status}
+                          <Badge className={getStatusColor(booking.bookingStatus)}>
+                            {booking.bookingStatus}
                           </Badge>
                         </div>
 
                         <div className="grid grid-cols-2 gap-4 text-sm text-gray-600 mb-4">
                           <div className="flex items-center">
                             <Calendar className="h-4 w-4 mr-2" />
-                            Check-in: {booking.checkIn}
+                            Check-in: {new Date(booking.checkIn).toLocaleDateString()}
                           </div>
                           <div className="flex items-center">
                             <Clock className="h-4 w-4 mr-2" />
-                            Check-out: {booking.checkOut}
+                            Check-out: {new Date(booking.checkOut).toLocaleDateString()}
                           </div>
                           <div>Guests: {booking.guests}</div>
-                          <div className="font-semibold">Total: ${booking.total}</div>
+                          <div className="font-semibold">Total: ${booking.totalAmount}</div>
                         </div>
 
                         <div className="bg-gray-50 p-3 rounded-lg mb-4">
@@ -181,19 +225,38 @@ const MyBookings = () => {
                       <div className="flex gap-2">
                         <Button
                           variant="outline"
-                          onClick={() => openChat(booking.id)}
+                          onClick={() => openChat(booking._id)}
                           className="flex-1"
                         >
                           <MessageSquare className="h-4 w-4 mr-2" />
                           Chat with Landlord
                         </Button>
+                        {booking.bookingStatus === 'confirmed' && (
+                          <Button
+                            variant="destructive"
+                            onClick={() => cancelBookingMutation.mutate(booking._id)}
+                            disabled={cancelBookingMutation.isPending}
+                            className="flex-1"
+                          >
+                            {cancelBookingMutation.isPending ? (
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            ) : (
+                              'Cancel Booking'
+                            )}
+                          </Button>
+                        )}
                       </div>
                     </div>
                   </div>
                 </div>
               </CardContent>
             </Card>
-          ))}
+          ))
+          ) : (
+            <div className="text-center py-12">
+              <p className="text-gray-600">No bookings found.</p>
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="upcoming" className="space-y-4">
