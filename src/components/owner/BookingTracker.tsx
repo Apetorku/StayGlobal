@@ -6,13 +6,17 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useAuth } from "@clerk/clerk-react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { bookingService } from "@/services/bookingService";
-import { Clock, CheckCircle, XCircle, Calendar, Loader2, RefreshCw } from "lucide-react";
+import { chatService } from "@/services/chatService";
+import { useToast } from "@/hooks/use-toast";
+import { Clock, CheckCircle, XCircle, Calendar, Loader2, RefreshCw, MessageSquare } from "lucide-react";
 
 const BookingTracker = () => {
   const [filterStatus, setFilterStatus] = useState("all");
   const { getToken, userId } = useAuth();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   // Fetch owner's bookings
   const { data: bookingData, isLoading, error, refetch } = useQuery({
@@ -30,6 +34,29 @@ const BookingTracker = () => {
   const filteredBookings = bookings.filter(booking =>
     filterStatus === "all" || booking.bookingStatus === filterStatus
   );
+
+  // Create chat mutation
+  const createChatMutation = useMutation({
+    mutationFn: async (bookingId: string) => {
+      const token = await getToken();
+      if (!token) throw new Error('Authentication required');
+      return chatService.getChatByBooking(bookingId, token);
+    },
+    onSuccess: (data, bookingId) => {
+      toast({
+        title: "Success",
+        description: "Chat created successfully! You can now communicate with the guest.",
+      });
+      queryClient.invalidateQueries({ queryKey: ['user-chats'] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create chat",
+        variant: "destructive"
+      });
+    },
+  });
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -160,6 +187,7 @@ const BookingTracker = () => {
                   <TableHead>Status</TableHead>
                   <TableHead>Amount</TableHead>
                   <TableHead>Ticket Code</TableHead>
+                  <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -203,6 +231,22 @@ const BookingTracker = () => {
                   </TableCell>
                     <TableCell className="font-semibold">${booking.totalAmount}</TableCell>
                     <TableCell className="font-mono text-sm">{booking.ticketCode}</TableCell>
+                    <TableCell>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => createChatMutation.mutate(booking._id)}
+                        disabled={createChatMutation.isPending || booking.bookingStatus === 'cancelled'}
+                        className="flex items-center gap-2"
+                      >
+                        {createChatMutation.isPending ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <MessageSquare className="h-4 w-4" />
+                        )}
+                        Chat
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>

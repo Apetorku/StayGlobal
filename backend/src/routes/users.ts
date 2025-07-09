@@ -1,14 +1,15 @@
 import express from 'express';
 import { requireAuth } from '../middleware/auth';
 import { syncUserWithClerk, createUserFromClerk } from '../utils/userUtils';
-import User from '../models/User';
+import User, { IUser } from '../models/User';
 
 const router = express.Router();
 
 // Get current user profile
 router.get('/profile', requireAuth, async (req, res): Promise<void> => {
   try {
-    res.json(req.user);
+    const reqUser = (req as any).user;
+    res.json(reqUser);
   } catch (error) {
     console.error('Error fetching user profile:', error);
     res.status(500).json({ error: 'Failed to fetch user profile' });
@@ -20,9 +21,19 @@ router.patch('/profile', requireAuth, async (req, res): Promise<void> => {
   try {
     const { phone, preferences } = req.body;
 
-    const user = req.user;
+    // Get the MongoDB user document, not the Clerk user
+    const reqUser = (req as any).user;
+    const user = await User.findOne({ clerkId: reqUser.clerkId }) as IUser;
 
-    if (phone) user.phone = phone;
+    if (!user) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
+    // Update fields if provided
+    if (phone) {
+      user.phone = phone;
+    }
     if (preferences) {
       user.preferences = { ...user.preferences, ...preferences };
     }
@@ -36,6 +47,24 @@ router.patch('/profile', requireAuth, async (req, res): Promise<void> => {
   } catch (error) {
     console.error('Error updating user profile:', error);
     res.status(500).json({ error: 'Failed to update profile' });
+  }
+});
+
+// Test authentication endpoint
+router.get('/test-auth', requireAuth, async (req, res): Promise<void> => {
+  try {
+    const reqUser = (req as any).user;
+    res.json({
+      message: 'Authentication successful',
+      user: {
+        id: reqUser.clerkId,
+        email: reqUser.email,
+        role: reqUser.role
+      }
+    });
+  } catch (error) {
+    console.error('Test auth error:', error);
+    res.status(500).json({ error: 'Test auth failed' });
   }
 });
 

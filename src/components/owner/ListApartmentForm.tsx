@@ -189,11 +189,29 @@ const ListApartmentForm = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Basic validation
-    if (!formData.title || !formData.description || !formData.address || !formData.price || !formData.country || !formData.region || !formData.town) {
+    // Debug form data
+    console.log('🔍 Form submission - Current form data:', formData);
+    console.log('🔍 Description value:', `"${formData.description}"`);
+    console.log('🔍 Description length:', formData.description?.length);
+    console.log('🔍 Description trimmed:', `"${formData.description?.trim()}"`);
+    console.log('🔍 Description trimmed length:', formData.description?.trim()?.length);
+
+    // Basic validation with proper trimming
+    if (!formData.title?.trim() || !formData.description?.trim() || !formData.address?.trim() || !formData.price || !formData.country || !formData.region || !formData.town) {
+      const missingFields = [];
+      if (!formData.title?.trim()) missingFields.push('Title');
+      if (!formData.description?.trim()) missingFields.push('Description');
+      if (!formData.address?.trim()) missingFields.push('Address');
+      if (!formData.price) missingFields.push('Price');
+      if (!formData.country) missingFields.push('Country');
+      if (!formData.region) missingFields.push('Region');
+      if (!formData.town) missingFields.push('Town');
+
+      console.log('❌ Missing fields:', missingFields);
+
       toast({
         title: "Missing Information",
-        description: "Please fill in all required fields including description",
+        description: `Please fill in all required fields: ${missingFields.join(', ')}`,
         variant: "destructive",
       });
       return;

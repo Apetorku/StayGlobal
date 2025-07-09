@@ -1,10 +1,11 @@
 import { useEffect, useRef } from 'react';
 import { useUser } from '@clerk/clerk-react';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { userService } from '@/services/userService';
 
 export default function UserSync() {
   const { user, isSignedIn } = useUser();
+  const queryClient = useQueryClient();
   const hasSyncedRef = useRef(false);
   const syncedUserIdRef = useRef<string | null>(null);
 
@@ -13,9 +14,14 @@ export default function UserSync() {
     retry: 2, // Limit retries to prevent resource exhaustion
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000), // Exponential backoff
     onSuccess: (data) => {
-      console.log('User synced successfully:', data);
       hasSyncedRef.current = true;
       syncedUserIdRef.current = user?.id || null;
+
+      // Invalidate verification status queries to ensure fresh data after user sync
+      // This ensures that if the user has verification status in the database,
+      // it will be fetched and cached properly
+      queryClient.invalidateQueries({ queryKey: ['verification-status'] });
+      queryClient.invalidateQueries({ queryKey: ['payment-account-status'] });
     },
     onError: (error) => {
       console.error('Failed to sync user:', error);

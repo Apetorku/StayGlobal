@@ -76,7 +76,7 @@ export interface ApartmentResponse {
 export const apartmentService = {
   async getApartments(filters: ApartmentFilters = {}): Promise<ApartmentResponse> {
     const params = new URLSearchParams();
-    
+
     Object.entries(filters).forEach(([key, value]) => {
       if (value !== undefined && value !== null) {
         if (Array.isArray(value)) {
@@ -88,11 +88,11 @@ export const apartmentService = {
     });
 
     const response = await fetch(`${API_BASE_URL}/apartments?${params}`);
-    
+
     if (!response.ok) {
       throw new Error(`Failed to fetch apartments: ${response.statusText}`);
     }
-    
+
     return response.json();
   },
 

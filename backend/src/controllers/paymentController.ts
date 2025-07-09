@@ -112,24 +112,82 @@ export const initializePayment = async (req: Request, res: Response): Promise<vo
           id: payment._id,
           reference,
           authorization_url: paystackResponse.data.authorization_url,
-          access_code: paystackResponse.data.access_code
+          access_code: paystackResponse.data.access_code,
+          // Additional data for inline payment
+          email: user.email,
+          amount: amountInKobo,
+          metadata: paystackData.metadata,
+          subaccount: owner.paymentAccount.accountDetails.subaccountCode,
+          transaction_charge: paystackService.convertToKobo(platformFee),
+          bearer: 'subaccount'
         }
       });
 
     } else if (paymentMethod === 'momo') {
-      // For Mobile Money, we'll implement this later
-      // For now, just create the payment record
+      // For Mobile Money payments, validate that user provided momo details
+      if (!booking.paymentDetails?.momoNumber || !booking.paymentDetails?.momoProvider) {
+        res.status(400).json({ error: 'Mobile money account details are required' });
+        return;
+      }
+
+      const reference = paystackService.generateReference();
+      const amountInKobo = paystackService.convertToKobo(totalAmount);
+
+      // For mobile money, we need to use Paystack's mobile money charge API
+      // This will send actual USSD prompts to the user's phone
+      const momoChargeData = {
+        email: user.email,
+        amount: amountInKobo,
+        reference,
+        phone: booking.paymentDetails.momoNumber,
+        provider: booking.paymentDetails.momoProvider, // mtn, vodafone, airteltigo
+        metadata: {
+          bookingId: (booking._id as any).toString(),
+          paymentId: (payment._id as any).toString(),
+          apartmentTitle: apartment.title,
+          checkIn: booking.checkIn,
+          checkOut: booking.checkOut,
+          mobile_money_number: booking.paymentDetails.momoNumber,
+          mobile_money_provider: booking.paymentDetails.momoProvider.toUpperCase()
+        },
+        subaccount: owner.paymentAccount.accountDetails.subaccountCode,
+        transaction_charge: paystackService.convertToKobo(platformFee),
+        bearer: 'subaccount' as const
+      };
+
+      // Use mobile money charge API to send USSD prompt to user's phone
+      const momoResponse = await paystackService.chargeMobileMoney(momoChargeData);
+
+      if (!momoResponse.status) {
+        res.status(400).json({ error: 'Failed to initiate mobile money payment' });
+        return;
+      }
+
+      // Update payment with Paystack details
+      payment.paystackReference = reference;
+      payment.paystackSubaccountCode = owner.paymentAccount.accountDetails.subaccountCode;
       payment.status = 'pending';
+
       await payment.save();
 
+      // Update booking with payment reference
       booking.paymentId = payment._id as any;
       await booking.save();
 
       res.json({
-        message: 'Mobile Money payment initialized',
+        message: 'Mobile Money payment initiated successfully',
         payment: {
           id: payment._id,
-          instructions: 'Please dial *170# and follow the prompts to complete payment'
+          reference,
+          status: momoResponse.data.status,
+          display_text: momoResponse.data.display_text || `Please check your phone (${booking.paymentDetails.momoNumber}) for a payment prompt and enter your ${booking.paymentDetails.momoProvider.toUpperCase()} Mobile Money PIN to complete the payment.`,
+          // Additional data for frontend
+          mobile_money: {
+            phone: booking.paymentDetails.momoNumber,
+            provider: booking.paymentDetails.momoProvider.toUpperCase(),
+            amount: paystackService.convertFromKobo(amountInKobo),
+            currency: 'GHS'
+          }
         }
       });
     } else {

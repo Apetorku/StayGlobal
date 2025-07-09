@@ -23,7 +23,8 @@ declare global {
  */
 export const requireIdentityVerification = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    if (!req.user) {
+    const reqUser = (req as any).user;
+    if (!reqUser) {
       res.status(401).json({
         error: 'Authentication required',
         message: 'Please sign in to continue'
@@ -31,7 +32,7 @@ export const requireIdentityVerification = async (req: Request, res: Response, n
       return;
     }
 
-    const user = await User.findOne({ clerkId: req.user.clerkId });
+    const user = await User.findOne({ clerkId: reqUser.clerkId });
     if (!user) {
       res.status(401).json({
         error: 'User not found',
@@ -82,7 +83,8 @@ export const requireIdentityVerification = async (req: Request, res: Response, n
  */
 export const requirePaymentAccount = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    if (!req.user) {
+    const reqUser = (req as any).user;
+    if (!reqUser) {
       res.status(401).json({
         error: 'Authentication required',
         message: 'Please sign in to continue'
@@ -90,7 +92,7 @@ export const requirePaymentAccount = async (req: Request, res: Response, next: N
       return;
     }
 
-    const user = await User.findOne({ clerkId: req.user.clerkId });
+    const user = await User.findOne({ clerkId: reqUser.clerkId });
     if (!user) {
       res.status(401).json({
         error: 'User not found',
@@ -137,7 +139,8 @@ export const requirePaymentAccount = async (req: Request, res: Response, next: N
  */
 export const requireFullVerification = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    if (!req.user) {
+    const reqUser = (req as any).user;
+    if (!reqUser) {
       res.status(401).json({
         error: 'Authentication required',
         message: 'Please sign in to continue'
@@ -145,7 +148,7 @@ export const requireFullVerification = async (req: Request, res: Response, next:
       return;
     }
 
-    const user = await User.findOne({ clerkId: req.user.clerkId });
+    const user = await User.findOne({ clerkId: reqUser.clerkId });
     if (!user) {
       res.status(401).json({
         error: 'User not found',
@@ -247,12 +250,13 @@ export const requireBiometricVerification = async (req: Request, res: Response, 
  */
 export const addVerificationStatus = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    if (!req.user) {
+    const reqUser = (req as any).user;
+    if (!reqUser) {
       next();
       return;
     }
 
-    const user = await User.findOne({ clerkId: req.user.clerkId });
+    const user = await User.findOne({ clerkId: reqUser.clerkId });
     if (!user) {
       next();
       return;
@@ -282,21 +286,22 @@ export const addVerificationStatus = async (req: Request, res: Response, next: N
  */
 export const rateLimitVerification = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    if (!req.user) {
+    const reqUser = (req as any).user;
+    if (!reqUser) {
       res.status(401).json({
         error: 'Authentication required'
       });
       return;
     }
 
-    const userId = req.user.clerkId;
+    const userId = reqUser.clerkId;
     const ipAddress = req.ip;
     
     // Check recent verification attempts from this user/IP
     const recentAttempts = await IdentityVerification.find({
       $or: [
         { userId },
-        { 'metadata.ipAddress': ipAddress }
+        { 'fraudPrevention.ipAddress': ipAddress }
       ],
       createdAt: { $gte: new Date(Date.now() - 60 * 60 * 1000) } // Last hour
     });

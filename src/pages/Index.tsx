@@ -5,8 +5,11 @@ import { Button } from "@/components/ui/button";
 import { useUser, UserButton } from "@clerk/clerk-react";
 import ApartmentSearch from "@/components/ApartmentSearch";
 import MyBookings from "@/components/MyBookings";
+import RenterChat from "@/components/renter/RenterChat";
+import NotificationCenter from "@/components/notifications/NotificationCenter";
+import NotificationBadge from "@/components/notifications/NotificationBadge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Home, Search, Calendar, MessageSquare } from "lucide-react";
+import { Home, Search, Calendar, MessageSquare, Bell } from "lucide-react";
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState("search");
@@ -75,7 +78,7 @@ const Index = () => {
 
         {/* Main Dashboard Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-3 lg:w-1/2 mx-auto mb-8">
+          <TabsList className="grid w-full grid-cols-4 lg:w-2/3 mx-auto mb-8">
             <TabsTrigger value="search" className="flex items-center gap-2">
               <Search className="h-4 w-4" />
               Search
@@ -88,6 +91,11 @@ const Index = () => {
               <MessageSquare className="h-4 w-4" />
               Messages
             </TabsTrigger>
+            <TabsTrigger value="notifications" className="flex items-center gap-2">
+              <Bell className="h-4 w-4" />
+              Notifications
+              <NotificationBadge />
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="search" className="space-y-6">
@@ -99,19 +107,11 @@ const Index = () => {
           </TabsContent>
 
           <TabsContent value="messages" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Messages</CardTitle>
-                <CardDescription>
-                  Chat with landlords after booking confirmation
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-gray-500 text-center py-8">
-                  No active conversations. Messages will appear here after you book an apartment.
-                </p>
-              </CardContent>
-            </Card>
+            <RenterChat />
+          </TabsContent>
+
+          <TabsContent value="notifications" className="space-y-6">
+            <NotificationCenter />
           </TabsContent>
         </Tabs>
       </main>

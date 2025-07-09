@@ -12,9 +12,12 @@ export interface Booking {
   guests: number;
   totalAmount: number;
   paymentStatus: 'pending' | 'paid' | 'failed' | 'refunded';
-  paymentMethod: 'card' | 'paypal' | 'bank_transfer';
-  bookingStatus: 'confirmed' | 'cancelled' | 'completed' | 'no_show';
+  paymentMethod: 'paystack' | 'momo' | 'card' | 'paypal' | 'bank_transfer';
+  bookingStatus: 'confirmed' | 'cancelled' | 'completed' | 'no_show' | 'checked-in';
   ticketCode: string;
+  roomNumber?: number; // Assigned room number
+  checkInTime?: string; // Actual check-in time
+  checkOutTime?: string; // Actual check-out time
   specialRequests?: string;
   createdAt: string;
   updatedAt: string;
@@ -35,7 +38,7 @@ export interface CreateBookingData {
   checkIn: string;
   checkOut: string;
   guests: number;
-  paymentMethod: 'card' | 'paypal' | 'bank_transfer';
+  paymentMethod: 'paystack' | 'momo' | 'card' | 'paypal' | 'bank_transfer';
   specialRequests?: string;
 }
 
@@ -195,5 +198,37 @@ export const bookingService = {
     }
 
     return response.json();
+  },
+
+  // Self-checkout for renters
+  async selfCheckout(bookingId: string, token: string): Promise<any> {
+    console.log(`🚪 Attempting self-checkout for booking: ${bookingId}`);
+    console.log(`📡 API URL: ${API_BASE_URL}/bookings/${bookingId}/checkout`);
+
+    const response = await fetch(`${API_BASE_URL}/bookings/${bookingId}/checkout`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    console.log(`📊 Response status: ${response.status}`);
+
+    if (!response.ok) {
+      let errorMessage = 'Failed to check out';
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.error || errorMessage;
+      } catch (e) {
+        errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+      }
+      console.error(`❌ Checkout failed: ${errorMessage}`);
+      throw new Error(errorMessage);
+    }
+
+    const result = await response.json();
+    console.log(`✅ Checkout successful:`, result);
+    return result;
   },
 };

@@ -2,24 +2,13 @@ import { Request, Response, NextFunction } from 'express';
 import { getAuth } from '@clerk/express';
 import User from '../models/User';
 
-// Extend Express Request type to include user
-declare global {
-  // eslint-disable-next-line @typescript-eslint/no-namespace
-  namespace Express {
-    interface Request {
-      user?: any;
-    }
-  }
-}
+// User type is now defined in src/types/express.d.ts
 
 export const requireAuth = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    console.log('🔑 Auth middleware - checking authentication...');
     const { userId } = getAuth(req);
-    console.log('🆔 Clerk User ID:', userId);
 
     if (!userId) {
-      console.log('❌ No userId from Clerk');
       res.status(401).json({
         error: 'Unauthorized',
         message: 'Authentication required'
@@ -27,14 +16,10 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
       return;
     }
 
-    // Find or create user in our database
+    // Find user in our database
     const user = await User.findOne({ clerkId: userId });
-    console.log('👤 Database user found:', user ? { id: user._id, email: user.email, role: user.role } : 'Not found');
 
     if (!user) {
-      // If user doesn't exist in our DB, we might need to create them
-      // This would typically happen on first login
-      console.log('❌ User not found in database');
       res.status(401).json({
         error: 'User not found',
         message: 'Please complete your profile setup'
@@ -46,11 +31,10 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
     user.lastLogin = new Date();
     await user.save();
 
-    req.user = user;
-    console.log('✅ Authentication successful');
+    (req as any).user = user;
     next();
   } catch (error) {
-    console.error('❌ Auth middleware error:', error);
+    console.error('Auth middleware error:', error);
     res.status(500).json({
       error: 'Authentication error',
       message: 'Failed to authenticate user'
@@ -61,9 +45,10 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
 export const requireRole = (roles: string[]) => {
   return (req: Request, res: Response, next: NextFunction): void => {
     console.log('🔐 Role check - Required roles:', roles);
-    console.log('👤 User:', req.user ? { id: req.user._id, email: req.user.email, role: req.user.role } : 'No user');
+    const reqUser = (req as any).user;
+    console.log('👤 User:', reqUser ? { id: reqUser.clerkId, email: reqUser.email, role: reqUser.role } : 'No user');
 
-    if (!req.user) {
+    if (!reqUser) {
       console.log('❌ No user found in request');
       res.status(401).json({
         error: 'Unauthorized',
@@ -72,8 +57,8 @@ export const requireRole = (roles: string[]) => {
       return;
     }
 
-    if (!roles.includes(req.user.role)) {
-      console.log(`❌ Role check failed - User role: ${req.user.role}, Required: ${roles.join(', ')}`);
+    if (!reqUser.role || !roles.includes(reqUser.role)) {
+      console.log(`❌ Role check failed - User role: ${reqUser.role}, Required: ${roles.join(', ')}`);
       res.status(403).json({
         error: 'Forbidden',
         message: 'Insufficient permissions'
@@ -93,7 +78,7 @@ export const optionalAuth = async (req: Request, res: Response, next: NextFuncti
     if (userId) {
       const user = await User.findOne({ clerkId: userId });
       if (user) {
-        req.user = user;
+        (req as any).user = user;
       }
     }
 

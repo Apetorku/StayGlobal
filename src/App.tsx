@@ -7,6 +7,8 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import ClerkProvider from "./components/ClerkProvider";
 import ProtectedRoute from "./components/ProtectedRoute";
 import UserSync from "./components/UserSync";
+import NotificationProvider from "./components/notifications/NotificationProvider";
+import AudioEnabler from "./components/notifications/AudioEnabler";
 import Landing from "./pages/Landing";
 import Index from "./pages/Index";
 import HouseOwner from "./pages/HouseOwner";
@@ -36,7 +38,9 @@ const App = () => (
         <Toaster />
         <Sonner />
         <UserSync />
-        <BrowserRouter>
+        <AudioEnabler />
+        <NotificationProvider>
+          <BrowserRouter>
           <Routes>
             <Route path="/" element={<Landing />} />
             <Route path="/search" element={
@@ -62,7 +66,8 @@ const App = () => (
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
-        </BrowserRouter>
+          </BrowserRouter>
+        </NotificationProvider>
       </TooltipProvider>
     </QueryClientProvider>
   </ClerkProvider>

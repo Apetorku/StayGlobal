@@ -31,6 +31,12 @@ const sampleApartments = [
     ownerId: "owner1",
     ownerName: "John Smith",
     ownerEmail: "john@example.com",
+    ownerPaymentAccount: {
+      provider: "paystack",
+      subaccountCode: "ACCT_8f4k1eq7f22f7lz",
+      accountNumber: "0123456789",
+      bankCode: "044"
+    },
     isActive: true
   },
   {
@@ -59,6 +65,10 @@ const sampleApartments = [
     ownerId: "owner2",
     ownerName: "Sarah Johnson",
     ownerEmail: "sarah@example.com",
+    ownerPaymentAccount: {
+      provider: "momo",
+      momoNumber: "+1234567890"
+    },
     isActive: true
   },
   {
@@ -87,6 +97,12 @@ const sampleApartments = [
     ownerId: "owner3",
     ownerName: "Mike Wilson",
     ownerEmail: "mike@example.com",
+    ownerPaymentAccount: {
+      provider: "paystack",
+      subaccountCode: "ACCT_9g5l2fr8g33g8ma",
+      accountNumber: "9876543210",
+      bankCode: "058"
+    },
     isActive: true
   },
   {
@@ -115,6 +131,11 @@ const sampleApartments = [
     ownerId: "owner4",
     ownerName: "Emily Davis",
     ownerEmail: "emily@example.com",
+    ownerPaymentAccount: {
+      provider: "momo",
+      momoNumber: "0591985228",
+      momoProvider: "mtn"
+    },
     isActive: true
   },
   {
@@ -143,6 +164,12 @@ const sampleApartments = [
     ownerId: "owner5",
     ownerName: "Robert Brown",
     ownerEmail: "robert@example.com",
+    ownerPaymentAccount: {
+      provider: "paystack",
+      subaccountCode: "ACCT_0h6m3gs9h44h9nb",
+      accountNumber: "5555666677",
+      bankCode: "011"
+    },
     isActive: true
   }
 ];

@@ -67,12 +67,21 @@ const CheckInSystem = () => {
         description: `${updatedBooking.guestName} has been checked in successfully`,
       });
     },
-    onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to check in guest",
-        variant: "destructive"
-      });
+    onError: (error: any) => {
+      // Handle specific "already checked in" error
+      if (error.response?.data?.error === 'Guest already checked in') {
+        toast({
+          title: "Already Checked In",
+          description: error.response.data.message || "Guest is already checked in",
+          variant: "default"
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: error.message || "Failed to check in guest",
+          variant: "destructive"
+        });
+      }
     },
   });
 
@@ -119,13 +128,44 @@ const CheckInSystem = () => {
     }
   };
 
+  const handleStatusUpdate = async (status: string) => {
+    if (!bookingDetails) return;
+
+    try {
+      const token = await getToken();
+      if (!token) throw new Error('Authentication required');
+
+      const updatedBooking = await bookingService.updateBookingStatus(bookingDetails._id, status, token);
+      setBookingDetails(updatedBooking);
+      queryClient.invalidateQueries({ queryKey: ['owner-bookings'] });
+
+      const statusMessages = {
+        'completed': 'checked out successfully',
+        'cancelled': 'booking cancelled'
+      };
+
+      toast({
+        title: "Success!",
+        description: `${updatedBooking.guestName} has been ${statusMessages[status] || 'updated'}`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update booking status",
+        variant: "destructive"
+      });
+    }
+  };
+
   const handleCheckOut = () => {
     if (bookingDetails) {
       checkOutMutation.mutate(bookingDetails._id);
     }
   };
 
-  const getStatusIcon = (status: string) => {
+  const getStatusIcon = (status: string | undefined) => {
+    if (!status) return <Clock className="h-4 w-4" />;
+
     switch (status) {
       case "pending":
         return <Clock className="h-4 w-4" />;
@@ -134,11 +174,13 @@ const CheckInSystem = () => {
       case "checked-out":
         return <XCircle className="h-4 w-4" />;
       default:
-        return null;
+        return <Clock className="h-4 w-4" />;
     }
   };
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status: string | undefined) => {
+    if (!status) return "default";
+
     switch (status) {
       case "pending":
         return "default";
@@ -199,7 +241,10 @@ const CheckInSystem = () => {
               Booking Details
               <Badge variant={getStatusColor(bookingDetails.status)} className="flex items-center gap-2">
                 {getStatusIcon(bookingDetails.status)}
-                {bookingDetails.status.charAt(0).toUpperCase() + bookingDetails.status.slice(1)}
+                {bookingDetails.status ?
+                  bookingDetails.status.charAt(0).toUpperCase() + bookingDetails.status.slice(1) :
+                  'Unknown'
+                }
               </Badge>
             </CardTitle>
           </CardHeader>
@@ -228,6 +273,16 @@ const CheckInSystem = () => {
               <div>
                 <Label className="text-sm font-medium text-gray-500">Ticket Code</Label>
                 <p className="text-lg font-semibold">{bookingDetails.ticketCode}</p>
+              </div>
+              <div>
+                <Label className="text-sm font-medium text-gray-500">Room Assignment</Label>
+                {bookingDetails.roomNumber ? (
+                  <p className="text-lg font-semibold text-blue-600">Room {bookingDetails.roomNumber}</p>
+                ) : (
+                  <p className="text-lg text-gray-500">
+                    {bookingDetails.bookingStatus === 'confirmed' ? 'Room will be assigned at check-in' : 'Not assigned'}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -261,6 +316,28 @@ const CheckInSystem = () => {
                     'Check In Guest'
                   )}
                 </Button>
+              )}
+
+              {bookingDetails.bookingStatus === "checked-in" && (
+                <div className="flex gap-4 flex-1">
+                  <div className="flex-1 p-3 bg-green-50 border border-green-200 rounded-lg">
+                    <div className="flex items-center gap-2 text-green-700">
+                      <CheckCircle className="h-5 w-5" />
+                      <span className="font-medium">Already Checked In</span>
+                    </div>
+                    <p className="text-sm text-green-600 mt-1">
+                      Guest is currently in Room {bookingDetails.roomNumber}
+                    </p>
+                  </div>
+                  <Button
+                    onClick={() => handleStatusUpdate('completed')}
+                    variant="outline"
+                    className="px-6"
+                    disabled={checkInMutation.isPending}
+                  >
+                    Check Out
+                  </Button>
+                </div>
               )}
               {bookingDetails.checkInTime && !bookingDetails.checkOutTime && (
                 <Button

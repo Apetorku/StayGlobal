@@ -6,6 +6,9 @@ export interface NationalIdData {
   country: string;
   fullName: string;
   dateOfBirth: string;
+  issuingAuthority?: string;
+  expiryDate?: string;
+  houseRegistrationNumber?: string;
 }
 
 export interface DocumentImages {
@@ -20,10 +23,27 @@ export interface FingerprintData {
   captureDevice?: string;
 }
 
+export interface BiometricData {
+  documentFrontUploaded?: boolean;
+  documentBackUploaded?: boolean;
+  faceVerified?: boolean;
+  verificationMethod?: string;
+}
+
+export interface PaymentAccountData {
+  provider: string;
+  accountDetails: any;
+}
+
 export interface VerificationSubmission {
   nationalId: NationalIdData;
-  documentImages: DocumentImages;
-  fingerprintData: FingerprintData;
+  biometric?: BiometricData;
+  paymentAccount?: PaymentAccountData;
+  autoRetrieved?: boolean;
+  verificationStatus?: string;
+  // Legacy support
+  documentImages?: DocumentImages;
+  fingerprintData?: FingerprintData;
   metadata?: {
     deviceFingerprint?: string;
     submissionSource?: 'web' | 'mobile';
@@ -59,6 +79,27 @@ class IdentityVerificationService {
    */
   async submitVerification(data: VerificationSubmission, token: string): Promise<any> {
     const response = await fetch(`${API_BASE_URL}/identity-verification/submit`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify(data)
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to submit verification');
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Submit simple verification (form-based only)
+   */
+  async submitSimpleVerification(data: any, token: string): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/identity-verification/simple`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

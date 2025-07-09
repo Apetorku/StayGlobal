@@ -54,6 +54,24 @@ interface PaystackVerifyResponse {
   };
 }
 
+interface PaystackMobileMoneyChargeResponse {
+  status: boolean;
+  message: string;
+  data: {
+    id: number;
+    domain: string;
+    status: string;
+    reference: string;
+    amount: number;
+    message: string | null;
+    gateway_response: string;
+    channel: string;
+    currency: string;
+    metadata: any;
+    display_text?: string;
+  };
+}
+
 interface PaystackSubaccountData {
   business_name: string;
   settlement_bank: string;
@@ -168,6 +186,73 @@ class PaystackService {
     } catch (error: any) {
       console.error('Paystack resolve account error:', error.response?.data || error.message);
       throw new Error(`Failed to resolve account: ${error.response?.data?.message || error.message}`);
+    }
+  }
+
+  // Charge mobile money - sends USSD prompt to user's phone
+  async chargeMobileMoney(data: {
+    email: string;
+    amount: number;
+    phone: string;
+    provider: string;
+    reference: string;
+    metadata?: any;
+    subaccount?: string;
+    transaction_charge?: number;
+    bearer?: string;
+  }): Promise<PaystackMobileMoneyChargeResponse> {
+    try {
+      // Map provider names to Paystack mobile money providers
+      const providerMap: { [key: string]: string } = {
+        'mtn': 'mtn',
+        'vodafone': 'vod',
+        'airteltigo': 'tgo'
+      };
+
+      const paystackProvider = providerMap[data.provider.toLowerCase()];
+      if (!paystackProvider) {
+        throw new Error(`Unsupported mobile money provider: ${data.provider}`);
+      }
+
+      const chargeData = {
+        email: data.email,
+        amount: data.amount,
+        mobile_money: {
+          phone: data.phone,
+          provider: paystackProvider
+        },
+        reference: data.reference,
+        metadata: data.metadata || {},
+        ...(data.subaccount && { subaccount: data.subaccount }),
+        ...(data.transaction_charge && { transaction_charge: data.transaction_charge }),
+        ...(data.bearer && { bearer: data.bearer })
+      };
+
+      console.log('🔄 Initiating mobile money charge:', {
+        phone: data.phone,
+        provider: paystackProvider,
+        amount: data.amount,
+        reference: data.reference,
+        fullChargeData: chargeData
+      });
+
+      const response = await axios.post(
+        `${PAYSTACK_BASE_URL}/charge`,
+        chargeData,
+        { headers: this.headers }
+      );
+
+      console.log('📱 Mobile money charge response:', {
+        status: response.data.status,
+        message: response.data.message,
+        data: response.data.data,
+        fullResponse: response.data
+      });
+
+      return response.data;
+    } catch (error: any) {
+      console.error('❌ Mobile money charge error:', error.response?.data || error.message);
+      throw new Error(`Failed to charge mobile money: ${error.response?.data?.message || error.message}`);
     }
   }
 

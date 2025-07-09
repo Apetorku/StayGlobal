@@ -35,8 +35,12 @@ interface PaymentAccount {
   createdAt: string;
 }
 
-const PaymentAccountSetup = () => {
-  const { getToken } = useAuth();
+interface PaymentAccountSetupProps {
+  onSetupComplete?: () => void;
+}
+
+const PaymentAccountSetup: React.FC<PaymentAccountSetupProps> = ({ onSetupComplete }) => {
+  const { getToken, isSignedIn, user } = useAuth();
   const queryClient = useQueryClient();
 
   // Form states
@@ -63,13 +67,17 @@ const PaymentAccountSetup = () => {
     queryKey: ['payment-account'],
     queryFn: async () => {
       const token = await getToken();
+      if (!token) {
+        throw new Error('No authentication token available');
+      }
       const response = await fetch(`${API_BASE_URL}/user-payments/account`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (!response.ok) throw new Error('Failed to fetch payment account');
       const data = await response.json();
       return data.paymentAccount as PaymentAccount | null;
-    }
+    },
+    enabled: !!isSignedIn && !!user
   });
 
   // Fetch banks
@@ -77,13 +85,17 @@ const PaymentAccountSetup = () => {
     queryKey: ['banks'],
     queryFn: async () => {
       const token = await getToken();
+      if (!token) {
+        throw new Error('No authentication token available');
+      }
       const response = await fetch(`${API_BASE_URL}/user-payments/banks`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (!response.ok) throw new Error('Failed to fetch banks');
       const data = await response.json();
       return data.banks as Bank[];
-    }
+    },
+    enabled: !!isSignedIn && !!user
   });
 
   // Verify account number
@@ -134,6 +146,13 @@ const PaymentAccountSetup = () => {
       queryClient.invalidateQueries({ queryKey: ['payment-account'] });
       setPaystackForm({ bankCode: '', accountNumber: '', businessName: '', description: '' });
       setVerifiedAccount(null);
+
+      // Call onSetupComplete callback if provided
+      if (onSetupComplete) {
+        setTimeout(() => {
+          onSetupComplete();
+        }, 1000);
+      }
     },
     onError: (error: Error) => {
       toast.error(error.message);
@@ -162,6 +181,13 @@ const PaymentAccountSetup = () => {
       toast.success('Mobile Money account setup successfully!');
       queryClient.invalidateQueries({ queryKey: ['payment-account'] });
       setMomoForm({ momoNumber: '', momoProvider: '' });
+
+      // Call onSetupComplete callback if provided
+      if (onSetupComplete) {
+        setTimeout(() => {
+          onSetupComplete();
+        }, 1000);
+      }
     },
     onError: (error: Error) => {
       toast.error(error.message);

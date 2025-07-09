@@ -1,4 +1,5 @@
 
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -22,19 +23,21 @@ const Landing = () => {
 
   // Fetch popular apartments from database
   const { data: apartmentData, isLoading, error } = useQuery({
-    queryKey: ['popular-apartments'],
+    queryKey: ['landing-apartments-v2'],
     queryFn: async () => {
-      console.log('Fetching apartments for landing page...');
-      const result = await apartmentService.getApartments({ limit: 6 });
-      console.log('Apartments fetched:', result);
-      return result;
+      console.log('🏠 Landing: Starting apartment fetch...');
+      try {
+        const result = await apartmentService.getApartments({ limit: 6 });
+        console.log('🏠 Landing: Apartments fetched successfully:', result);
+        return result;
+      } catch (err) {
+        console.error('🏠 Landing: Fetch error:', err);
+        throw err;
+      }
     },
-    staleTime: 10 * 60 * 1000, // 10 minutes
+    retry: 1,
+    staleTime: 0,
   });
-
-  console.log('Landing page - apartmentData:', apartmentData);
-  console.log('Landing page - isLoading:', isLoading);
-  console.log('Landing page - error:', error);
 
   const popularApartments = apartmentData?.apartments?.map(apartment => ({
     _id: apartment._id,
@@ -118,6 +121,13 @@ const Landing = () => {
       amenities: ["WiFi", "Kitchen", "AC"]
     }
   ];
+
+  // Debug logging
+  console.log('Landing page - apartmentData:', apartmentData);
+  console.log('Landing page - isLoading:', isLoading);
+  console.log('Landing page - error:', error);
+  console.log('Landing page - popularApartments length:', popularApartments.length);
+  console.log('Landing page - fallbackApartments length:', fallbackApartments.length);
 
   const features = [
     {
@@ -278,8 +288,13 @@ const Landing = () => {
               popularApartments.map((apartment) => (
                 <ApartmentCard key={apartment._id || apartment.id} apartment={apartment} />
               ))
+            ) : error || !apartmentData ? (
+              // Use fallback data when API fails or no data
+              fallbackApartments.map((apartment) => (
+                <ApartmentCard key={apartment.id} apartment={apartment} />
+              ))
             ) : (
-              // Fallback message
+              // No data available
               <div className="col-span-full text-center py-12">
                 <p className="text-gray-600">No apartments available at the moment.</p>
               </div>

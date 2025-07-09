@@ -2,14 +2,18 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Shield } from 'lucide-react';
-import QuickVerificationFlow from './QuickVerificationFlow';
+import SimpleVerificationFlow from './SimpleVerificationFlow';
 
 interface IdentityVerificationFlowProps {
   onVerificationComplete?: () => void;
+  onPaymentSetupRequired?: () => void;
+  onClose?: () => void;
 }
 
 const IdentityVerificationFlow: React.FC<IdentityVerificationFlowProps> = ({
-  onVerificationComplete
+  onVerificationComplete,
+  onPaymentSetupRequired,
+  onClose
 }) => {
   const [verificationData, setVerificationData] = useState({
     nationalId: null as any,
@@ -22,10 +26,10 @@ const IdentityVerificationFlow: React.FC<IdentityVerificationFlowProps> = ({
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Shield className="h-6 w-6 text-blue-600" />
-          Identity Verification
+          House Owner Verification
         </CardTitle>
         <CardDescription>
-          Quick verification using your ID number and fingerprint - just like MTN
+          Simple and secure verification for property owners
         </CardDescription>
       </CardHeader>
 
@@ -34,16 +38,20 @@ const IdentityVerificationFlow: React.FC<IdentityVerificationFlowProps> = ({
         <Alert className="mb-6">
           <Shield className="h-4 w-4" />
           <AlertDescription>
-            Your personal information is encrypted and securely stored. We connect directly to
-            government databases for instant verification and maximum security.
+            Your personal information is encrypted and securely stored. We use fraud prevention
+            measures to ensure the security of our platform.
           </AlertDescription>
         </Alert>
 
-        {/* Quick Verification Flow */}
-        <QuickVerificationFlow
+        {/* Simple Verification Flow */}
+        <SimpleVerificationFlow
           onComplete={(data) => {
             setVerificationData(data);
             onVerificationComplete?.();
+          }}
+          onPaymentSetupRequired={() => {
+            console.log('🔄 Verification complete, redirecting to payment setup...');
+            onPaymentSetupRequired?.();
           }}
         />
       </CardContent>

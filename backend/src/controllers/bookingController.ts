@@ -3,76 +3,215 @@ import Booking, { IBooking } from '../models/Booking';
 import Apartment from '../models/Apartment';
 import { syncUserWithClerk } from '../utils/userUtils';
 import biometricService from '../services/biometricService';
+import ChatService from '../services/chatService';
+import NotificationService from '../services/notificationService';
+
+// Helper function to get next available room number
+const getNextAvailableRoom = async (apartmentId: string, checkIn: Date, checkOut: Date, excludeBookingId?: string): Promise<number> => {
+  const apartment = await Apartment.findById(apartmentId);
+  if (!apartment) {
+    throw new Error('Apartment not found');
+  }
+
+  console.log(`🔍 Finding available room for apartment ${apartmentId} from ${checkIn.toISOString()} to ${checkOut.toISOString()}`);
+
+  // Get all bookings that overlap with the requested dates and have assigned rooms
+  const query: any = {
+    apartmentId,
+    $or: [
+      {
+        checkIn: { $lte: checkOut },
+        checkOut: { $gte: checkIn }
+      }
+    ],
+    bookingStatus: { $in: ['confirmed', 'checked-in', 'completed'] },
+    roomNumber: { $exists: true, $ne: null }
+  };
+
+  // Exclude current booking if provided (for updates)
+  if (excludeBookingId) {
+    query._id = { $ne: excludeBookingId };
+  }
+
+  const overlappingBookings = await Booking.find(query).select('roomNumber guestName checkIn checkOut');
+
+  console.log(`📋 Found ${overlappingBookings.length} overlapping bookings with assigned rooms:`);
+  overlappingBookings.forEach(booking => {
+    console.log(`   Room ${booking.roomNumber}: ${booking.guestName} (${booking.checkIn.toDateString()} - ${booking.checkOut.toDateString()})`);
+  });
+
+  // Get occupied room numbers
+  const occupiedRooms = new Set(overlappingBookings.map(booking => booking.roomNumber));
+
+  console.log(`🚫 Occupied rooms: [${Array.from(occupiedRooms).sort().join(', ')}]`);
+
+  // Find the first available room number
+  for (let roomNum = 1; roomNum <= apartment.totalRooms; roomNum++) {
+    if (!occupiedRooms.has(roomNum)) {
+      console.log(`✅ Assigned room ${roomNum} (first available)`);
+      return roomNum;
+    }
+  }
+
+  console.log(`❌ No rooms available - all ${apartment.totalRooms} rooms are occupied`);
+  throw new Error(`No rooms available for the selected dates. All ${apartment.totalRooms} rooms are currently occupied.`);
+};
+
+// Helper function to get room occupancy status
+const getRoomOccupancyStatus = async (apartmentId: string, checkIn: Date, checkOut: Date) => {
+  const apartment = await Apartment.findById(apartmentId);
+  if (!apartment) {
+    throw new Error('Apartment not found');
+  }
+
+  // Get all bookings that overlap with the requested dates and have assigned rooms
+  const overlappingBookings = await Booking.find({
+    apartmentId,
+    $or: [
+      {
+        checkIn: { $lte: checkOut },
+        checkOut: { $gte: checkIn }
+      }
+    ],
+    bookingStatus: { $in: ['confirmed', 'checked-in', 'completed'] },
+    roomNumber: { $exists: true, $ne: null }
+  }).select('roomNumber guestName checkIn checkOut bookingStatus');
+
+  const occupiedRooms = new Map();
+  overlappingBookings.forEach(booking => {
+    occupiedRooms.set(booking.roomNumber, {
+      guestName: booking.guestName,
+      checkIn: booking.checkIn,
+      checkOut: booking.checkOut,
+      status: booking.bookingStatus
+    });
+  });
+
+  const roomStatus = [];
+  for (let roomNum = 1; roomNum <= apartment.totalRooms; roomNum++) {
+    const occupant = occupiedRooms.get(roomNum);
+    roomStatus.push({
+      roomNumber: roomNum,
+      isOccupied: !!occupant,
+      occupant: occupant || null
+    });
+  }
+
+  return {
+    totalRooms: apartment.totalRooms,
+    availableRooms: apartment.totalRooms - occupiedRooms.size,
+    occupiedRooms: occupiedRooms.size,
+    roomStatus
+  };
+};
+
+// Mobile money validation function
+const validateMomoNumber = (number: string, provider: string): boolean => {
+  const cleanNumber = number.replace(/\s+/g, '');
+
+  switch (provider) {
+    case 'mtn':
+      return /^(0?24|0?54|0?55|0?59)\d{7}$/.test(cleanNumber);
+    case 'vodafone':
+      return /^(0?20|0?50)\d{7}$/.test(cleanNumber);
+    case 'airteltigo':
+      return /^(0?26|0?27|0?56|0?57)\d{7}$/.test(cleanNumber);
+    default:
+      return false;
+  }
+};
 
 // Create new booking
 export const createBooking = async (req: Request, res: Response): Promise<void> => {
+  console.log('🎯🎯🎯 BOOKING CONTROLLER HIT - createBooking function! 🎯🎯🎯');
+  console.log('🎯 Booking request received!');
+  console.log('Request body:', JSON.stringify(req.body, null, 2));
+  console.log('User:', req.user);
+
   try {
     const {
       apartmentId,
       checkIn,
       checkOut,
       guests,
-      paymentMethod,
       specialRequests
     } = req.body;
 
-    // Sync user with Clerk to get latest data
-    const user = await syncUserWithClerk(req.user.clerkId);
+    // Basic validation
+    if (!apartmentId) {
+      console.log('❌ Missing apartmentId');
+      res.status(400).json({ error: 'Apartment ID is required' });
+      return;
+    }
 
-    // Validate apartment exists and is available
+    if (!checkIn) {
+      console.log('❌ Missing checkIn');
+      res.status(400).json({ error: 'Check-in date is required' });
+      return;
+    }
+
+    if (!checkOut) {
+      console.log('❌ Missing checkOut');
+      res.status(400).json({ error: 'Check-out date is required' });
+      return;
+    }
+
+    if (!guests || guests < 1) {
+      console.log('❌ Invalid guests:', guests);
+      res.status(400).json({ error: 'Number of guests must be at least 1' });
+      return;
+    }
+
+    // Get user data
+    const user = await syncUserWithClerk(req.user.clerkId);
+    if (!user) {
+      console.log('❌ User not found');
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
+    // Validate apartment
     const apartment = await Apartment.findById(apartmentId);
     if (!apartment) {
+      console.log('❌ Apartment not found:', apartmentId);
       res.status(404).json({ error: 'Apartment not found' });
       return;
     }
 
     if (!apartment.isActive) {
+      console.log('❌ Apartment not active');
       res.status(400).json({ error: 'Apartment is not available' });
       return;
     }
 
-    if (apartment.availableRooms < 1) {
-      res.status(400).json({ error: 'No rooms available' });
-      return;
-    }
+    // Simple date validation - avoid timezone issues
+    const checkInDate = new Date(checkIn + 'T12:00:00.000Z');
+    const checkOutDate = new Date(checkOut + 'T12:00:00.000Z');
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
-    // Validate dates
-    const checkInDate = new Date(checkIn);
-    const checkOutDate = new Date(checkOut);
-    const now = new Date();
-
-    if (checkInDate < now) {
+    if (checkInDate < today) {
+      console.log('❌ Check-in date in past');
       res.status(400).json({ error: 'Check-in date cannot be in the past' });
       return;
     }
 
     if (checkOutDate <= checkInDate) {
+      console.log('❌ Invalid date range');
       res.status(400).json({ error: 'Check-out date must be after check-in date' });
       return;
     }
 
-    // Check for overlapping bookings
-    const overlappingBookings = await Booking.find({
-      apartmentId,
-      bookingStatus: { $in: ['confirmed', 'completed'] },
-      $or: [
-        {
-          checkIn: { $lte: checkInDate },
-          checkOut: { $gt: checkInDate }
-        },
-        {
-          checkIn: { $lt: checkOutDate },
-          checkOut: { $gte: checkOutDate }
-        },
-        {
-          checkIn: { $gte: checkInDate },
-          checkOut: { $lte: checkOutDate }
-        }
-      ]
-    });
-
-    if (overlappingBookings.length >= apartment.availableRooms) {
-      res.status(400).json({ error: 'No rooms available for selected dates' });
+    // Check room availability for the requested dates
+    try {
+      await getNextAvailableRoom(apartmentId, checkInDate, checkOutDate);
+      console.log('✅ Room availability confirmed');
+    } catch (error) {
+      console.log('❌ No rooms available:', (error as Error).message);
+      res.status(400).json({
+        error: 'No rooms available',
+        message: (error as Error).message || 'All rooms are booked for the selected dates'
+      });
       return;
     }
 
@@ -80,37 +219,73 @@ export const createBooking = async (req: Request, res: Response): Promise<void> 
     const days = Math.ceil((checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24));
     const totalAmount = days * apartment.price;
 
-    // Create booking
-    const booking = new Booking({
+    console.log('✅ Creating booking with validated data');
+
+    // Generate unique ticket code
+    const timestamp = Date.now();
+    const randomStr = Math.random().toString(36).substr(2, 6).toUpperCase();
+    const ticketCode = `BK${timestamp}${randomStr}`;
+
+    // Create booking with minimal required fields
+    const bookingData = {
       apartmentId,
       guestId: user.clerkId,
-      guestName: user.fullName,
+      guestName: user.fullName || `${user.firstName} ${user.lastName}`,
       guestEmail: user.email,
       guestPhone: user.phone || '',
       checkIn: checkInDate,
       checkOut: checkOutDate,
-      guests,
+      guests: Number(guests),
       totalAmount,
-      paymentMethod,
-      specialRequests
-    });
+      paymentMethod: 'none', // No payment required for now
+      paymentStatus: 'not_required',
+      bookingStatus: 'confirmed',
+      ticketCode,
+      specialRequests: specialRequests || ''
+    };
 
-    await booking.save();
+    console.log('📝 Final booking data:', JSON.stringify(bookingData, null, 2));
 
-    // Update apartment available rooms
-    apartment.availableRooms -= 1;
-    await apartment.save();
+    // Create booking without Mongoose validation that might be causing issues
+    const booking = await Booking.create(bookingData);
 
-    // Populate apartment details for response
+    console.log('✅ Booking saved successfully');
+
+    // Populate apartment details
     await booking.populate('apartmentId', 'title location images');
+
+    // Create chat for the booking
+    try {
+      await ChatService.getOrCreateChat((booking._id as string).toString());
+      console.log('✅ Chat created for booking');
+    } catch (error) {
+      console.error('⚠️ Failed to create chat for booking:', error);
+      // Don't fail the booking creation if chat creation fails
+    }
 
     res.status(201).json({
       message: 'Booking created successfully',
       booking
     });
-  } catch (error) {
-    console.error('Error creating booking:', error);
-    res.status(500).json({ error: 'Failed to create booking' });
+
+  } catch (error: any) {
+    console.error('❌ Error creating booking:', error);
+    console.error('Error details:', error.message);
+
+    if (error.name === 'ValidationError') {
+      const validationErrors = Object.values(error.errors).map((err: any) => err.message);
+      console.log('❌ Mongoose validation errors:', validationErrors);
+      res.status(400).json({
+        error: 'Validation failed',
+        details: validationErrors
+      });
+      return;
+    }
+
+    res.status(500).json({
+      error: 'Failed to create booking',
+      details: error.message
+    });
   }
 };
 
@@ -248,6 +423,7 @@ export const cancelBooking = async (req: Request, res: Response): Promise<void> 
 // Get all bookings for apartments owned by the current user
 export const getOwnerBookings = async (req: Request, res: Response): Promise<void> => {
   try {
+    console.log('📅 Getting bookings for owner:', req.user.clerkId);
     const { page = 1, limit = 100, status } = req.query;
 
     const pageNum = Math.max(1, Number(page));
@@ -257,6 +433,7 @@ export const getOwnerBookings = async (req: Request, res: Response): Promise<voi
     // First, get all apartments owned by the current user
     const userApartments = await Apartment.find({ ownerId: req.user.clerkId }).select('_id');
     const apartmentIds = userApartments.map(apt => apt._id);
+    console.log('🏠 User apartments found:', userApartments.length);
 
     if (apartmentIds.length === 0) {
       // User has no apartments, return empty result
@@ -428,17 +605,36 @@ export const getBookingByTicketCode = async (req: Request, res: Response): Promi
 // Update booking status (for check-in/check-out)
 export const updateBookingStatus = async (req: Request, res: Response): Promise<void> => {
   try {
+    console.log(`🔄 Updating booking status - ID: ${req.params.id}, Status: ${req.body.status}`);
+
     const { id } = req.params;
     const { status } = req.body;
 
     if (!['confirmed', 'checked-in', 'completed', 'cancelled'].includes(status)) {
+      console.log(`❌ Invalid status: ${status}`);
       res.status(400).json({ error: 'Invalid booking status' });
       return;
     }
 
+    console.log(`🔍 Finding booking with ID: ${id}`);
     const booking = await Booking.findById(id);
     if (!booking) {
+      console.log(`❌ Booking not found: ${id}`);
       res.status(404).json({ error: 'Booking not found' });
+      return;
+    }
+
+    console.log(`✅ Booking found: ${booking.guestName} - Current status: ${booking.bookingStatus}`);
+
+    // Check if guest is already checked in
+    if (status === 'checked-in' && booking.bookingStatus === 'checked-in') {
+      console.log(`⚠️ Guest ${booking.guestName} is already checked in to room ${booking.roomNumber}`);
+      res.status(400).json({
+        error: 'Guest already checked in',
+        message: `${booking.guestName} is already checked in to Room ${booking.roomNumber}`,
+        roomNumber: booking.roomNumber,
+        checkInTime: booking.checkInTime
+      });
       return;
     }
 
@@ -454,15 +650,56 @@ export const updateBookingStatus = async (req: Request, res: Response): Promise<
     // Update booking status
     booking.bookingStatus = status;
 
+    // Handle check-in: assign room number and set check-in time
+    if (status === 'checked-in' && !booking.roomNumber) {
+      console.log(`🔄 Attempting to assign room for booking ${booking._id}`);
+      console.log(`📅 Booking dates: ${booking.checkIn} to ${booking.checkOut}`);
+      console.log(`🏠 Apartment ID: ${booking.apartmentId}`);
+
+      try {
+        const roomNumber = await getNextAvailableRoom(
+          booking.apartmentId.toString(),
+          booking.checkIn,
+          booking.checkOut,
+          (booking._id as string).toString()
+        );
+        booking.roomNumber = roomNumber;
+        booking.checkInTime = new Date();
+        console.log(`✅ Assigned room ${roomNumber} to booking ${booking._id}`);
+      } catch (error) {
+        console.error('❌ Error assigning room:', error);
+        console.error('❌ Error stack:', (error as Error).stack);
+        res.status(400).json({
+          error: (error as Error).message || 'Failed to assign room',
+          details: (error as Error).stack
+        });
+        return;
+      }
+    }
+
+    // Handle check-out: set check-out time
+    if (status === 'completed' && booking.checkInTime && !booking.checkOutTime) {
+      booking.checkOutTime = new Date();
+      console.log(`✅ Checked out booking ${booking._id} from room ${booking.roomNumber}`);
+    }
+
+    console.log(`💾 Saving booking with updated status: ${status}`);
     await booking.save();
 
+    console.log(`✅ Booking status updated successfully to: ${status}`);
     res.json({
       message: 'Booking status updated successfully',
       booking
     });
   } catch (error) {
-    console.error('Error updating booking status:', error);
-    res.status(500).json({ error: 'Failed to update booking status' });
+    console.error('❌ Error updating booking status:', error);
+    console.error('❌ Error details:', (error as Error).message);
+    console.error('❌ Error stack:', (error as Error).stack);
+    res.status(500).json({
+      error: 'Failed to update booking status',
+      details: (error as Error).message,
+      stack: (error as Error).stack
+    });
   }
 };
 
@@ -615,6 +852,15 @@ export const createSecureBooking = async (req: Request, res: Response): Promise<
 
     await booking.save();
 
+    // Create chat for the booking
+    try {
+      await ChatService.getOrCreateChat((booking._id as string).toString());
+      console.log('✅ Chat created for secure booking');
+    } catch (error) {
+      console.error('⚠️ Failed to create chat for secure booking:', error);
+      // Don't fail the booking creation if chat creation fails
+    }
+
     // Update apartment available rooms
     apartment.availableRooms -= 1;
     await apartment.save();
@@ -641,5 +887,122 @@ export const createSecureBooking = async (req: Request, res: Response): Promise<
   } catch (error) {
     console.error('Error creating secure booking:', error);
     res.status(500).json({ error: 'Failed to create secure booking' });
+  }
+};
+
+// Get room availability status for an apartment
+export const getRoomAvailability = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { apartmentId } = req.params;
+    const { checkIn, checkOut } = req.query;
+
+    if (!checkIn || !checkOut) {
+      res.status(400).json({ error: 'Check-in and check-out dates are required' });
+      return;
+    }
+
+    const checkInDate = new Date(checkIn as string + 'T12:00:00.000Z');
+    const checkOutDate = new Date(checkOut as string + 'T12:00:00.000Z');
+
+    const roomStatus = await getRoomOccupancyStatus(apartmentId, checkInDate, checkOutDate);
+
+    res.json({
+      message: 'Room availability retrieved successfully',
+      ...roomStatus,
+      dateRange: {
+        checkIn: checkInDate,
+        checkOut: checkOutDate
+      }
+    });
+  } catch (error) {
+    console.error('Error getting room availability:', error);
+    res.status(500).json({ error: 'Failed to get room availability' });
+  }
+};
+
+// Self-checkout for renters
+export const selfCheckout = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id: bookingId } = req.params;
+    const userId = req.user.clerkId;
+
+    console.log(`🚪 Self-checkout requested by user ${userId} for booking ${bookingId}`);
+
+    // Find the booking
+    const booking = await Booking.findById(bookingId).populate('apartmentId');
+    if (!booking) {
+      res.status(404).json({ error: 'Booking not found' });
+      return;
+    }
+
+    // Verify the user owns this booking
+    if (booking.guestId !== userId) {
+      res.status(403).json({ error: 'You can only check out your own bookings' });
+      return;
+    }
+
+    // Check if booking is in checked-in status
+    if (booking.bookingStatus !== 'checked-in') {
+      res.status(400).json({
+        error: `Cannot check out. Booking status is '${booking.bookingStatus}'. Only checked-in bookings can be checked out.`
+      });
+      return;
+    }
+
+    // Check if already checked out
+    if (booking.checkOutTime) {
+      res.status(400).json({
+        error: 'You have already checked out of this booking',
+        checkOutTime: booking.checkOutTime
+      });
+      return;
+    }
+
+    const apartment = booking.apartmentId as any;
+    const checkoutTime = new Date();
+
+    // Update booking status to completed and set checkout time
+    booking.bookingStatus = 'completed';
+    booking.checkOutTime = checkoutTime;
+    await booking.save();
+
+    console.log(`✅ Self-checkout completed for booking ${bookingId} - Room ${booking.roomNumber}`);
+
+    // Create notification for the house owner
+    try {
+      await NotificationService.createNotification({
+        userId: apartment.ownerId,
+        type: 'auto_checkout',
+        title: 'Guest Self-Checkout',
+        message: `${booking.guestName} has checked out early from ${apartment.title}${booking.roomNumber ? ` - Room ${booking.roomNumber}` : ''} at ${checkoutTime.toLocaleString()}.`,
+        bookingId: (booking._id as string).toString(),
+        apartmentId: apartment._id.toString(),
+        guestName: booking.guestName,
+        roomNumber: booking.roomNumber,
+        priority: 'medium'
+      });
+
+      console.log(`📧 Self-checkout notification sent to owner ${apartment.ownerId}`);
+    } catch (notificationError) {
+      console.error('❌ Failed to send self-checkout notification:', notificationError);
+      // Don't fail the checkout if notification fails
+    }
+
+    res.json({
+      message: 'Successfully checked out',
+      booking: {
+        id: booking._id,
+        apartmentTitle: apartment.title,
+        roomNumber: booking.roomNumber,
+        checkOutTime: booking.checkOutTime,
+        bookingStatus: booking.bookingStatus,
+        originalCheckOutDate: booking.checkOut,
+        earlyCheckout: checkoutTime < booking.checkOut
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error during self-checkout:', error);
+    res.status(500).json({ error: 'Failed to process checkout' });
   }
 };

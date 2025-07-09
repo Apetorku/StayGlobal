@@ -6,39 +6,50 @@ import { useAuth, UserButton } from "@clerk/clerk-react";
 import { useQuery } from "@tanstack/react-query";
 import { apartmentService } from "@/services/apartmentService";
 import { bookingService } from "@/services/bookingService";
-import { Building, Plus, UserCheck, Calendar, DollarSign, MessageSquare, Loader2 } from "lucide-react";
+import { Building, Plus, UserCheck, Calendar, DollarSign, MessageSquare, Bell, Loader2 } from "lucide-react";
 import ListApartmentForm from "@/components/owner/ListApartmentForm";
 import CheckInSystem from "@/components/owner/CheckInSystem";
 import BookingTracker from "@/components/owner/BookingTracker";
 import PaymentTracker from "@/components/owner/PaymentTracker";
+import PaymentAccountSetup from "@/components/owner/PaymentAccountSetup";
 import OwnerChat from "@/components/owner/OwnerChat";
 import VerificationGate from "@/components/verification/VerificationGate";
+import NotificationCenter from "@/components/notifications/NotificationCenter";
+import NotificationBadge from "@/components/notifications/NotificationBadge";
 
 const HouseOwner = () => {
   const [activeTab, setActiveTab] = useState("list");
-  const { getToken, userId } = useAuth();
+  const { getToken, userId, isSignedIn } = useAuth();
 
   // Fetch owner's apartments
-  const { data: apartmentData, isLoading: apartmentsLoading } = useQuery({
+  const { data: apartmentData, isLoading: apartmentsLoading, error: apartmentError } = useQuery({
     queryKey: ['owner-apartments', userId],
     queryFn: async () => {
+      console.log('🏠 Fetching apartments for user:', userId);
       const token = await getToken();
+      console.log('🔑 Token for apartments:', token ? 'Available' : 'Missing');
       if (!token) throw new Error('Authentication required');
-      return apartmentService.getOwnerApartments(token);
+      const result = await apartmentService.getOwnerApartments(token);
+      console.log('📊 Apartments result:', result);
+      return result;
     },
-    enabled: !!userId,
+    enabled: !!isSignedIn && !!userId,
     staleTime: 5 * 60 * 1000,
   });
 
   // Fetch owner's bookings
-  const { data: bookingData, isLoading: bookingsLoading } = useQuery({
+  const { data: bookingData, isLoading: bookingsLoading, error: bookingError } = useQuery({
     queryKey: ['owner-bookings', userId],
     queryFn: async () => {
+      console.log('📅 Fetching bookings for user:', userId);
       const token = await getToken();
+      console.log('🔑 Token for bookings:', token ? 'Available' : 'Missing');
       if (!token) throw new Error('Authentication required');
-      return bookingService.getOwnerBookings(token);
+      const result = await bookingService.getOwnerBookings(token);
+      console.log('📊 Bookings result:', result);
+      return result;
     },
-    enabled: !!userId,
+    enabled: !!isSignedIn && !!userId,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -59,6 +70,21 @@ const HouseOwner = () => {
   };
 
   const isLoading = apartmentsLoading || bookingsLoading;
+
+  // Debug logging
+  console.log('🔍 Debug Info:', {
+    isSignedIn,
+    userId,
+    apartmentData,
+    bookingData,
+    apartmentError,
+    bookingError,
+    apartmentsLoading,
+    bookingsLoading
+  });
+
+  const apartments = apartmentData?.apartments || [];
+  const bookings = bookingData?.bookings || [];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100">
@@ -134,7 +160,7 @@ const HouseOwner = () => {
 
         {/* Main Dashboard Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-5 lg:w-3/4 mx-auto mb-8">
+          <TabsList className="grid w-full grid-cols-6 lg:w-4/5 mx-auto mb-8">
             <TabsTrigger value="list" className="flex items-center gap-2">
               <Plus className="h-4 w-4" />
               List Apartment
@@ -155,6 +181,11 @@ const HouseOwner = () => {
               <MessageSquare className="h-4 w-4" />
               Chat
             </TabsTrigger>
+            <TabsTrigger value="notifications" className="flex items-center gap-2">
+              <Bell className="h-4 w-4" />
+              Notifications
+              <NotificationBadge />
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="list" className="space-y-6">
@@ -172,11 +203,35 @@ const HouseOwner = () => {
           </TabsContent>
 
           <TabsContent value="payments" className="space-y-6">
-            <PaymentTracker />
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div>
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <DollarSign className="h-5 w-5" />
+                      Payment Account Setup
+                    </CardTitle>
+                    <CardDescription>
+                      Set up your payment account to receive rental payments directly from tenants
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <PaymentAccountSetup />
+                  </CardContent>
+                </Card>
+              </div>
+              <div>
+                <PaymentTracker />
+              </div>
+            </div>
           </TabsContent>
 
           <TabsContent value="chat" className="space-y-6">
             <OwnerChat />
+          </TabsContent>
+
+          <TabsContent value="notifications" className="space-y-6">
+            <NotificationCenter />
           </TabsContent>
         </Tabs>
       </main>

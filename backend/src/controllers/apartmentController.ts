@@ -109,11 +109,12 @@ export const createApartment = async (req: Request, res: Response): Promise<void
     } = req.body;
 
     // Sync user with Clerk to get latest data
-    if (!req.user) {
+    const reqUser = (req as any).user;
+    if (!reqUser) {
       res.status(401).json({ error: 'Authentication required' });
       return;
     }
-    const user = await syncUserWithClerk(req.user.clerkId);
+    const user = await syncUserWithClerk(reqUser.clerkId);
 
     // Check identity verification requirement
     if (!user.identityVerification?.isVerified) {
@@ -182,6 +183,16 @@ export const createApartment = async (req: Request, res: Response): Promise<void
       momoProvider: user.paymentAccount.accountDetails.momoProvider
     };
 
+    console.log('🏗️ Creating apartment with data:', {
+      title,
+      ownerId: user.clerkId,
+      ownerName: calculatedOwnerName,
+      ownerEmail: user.email,
+      location,
+      price,
+      totalRooms
+    });
+
     const apartment = new Apartment({
       title,
       description,
@@ -197,7 +208,16 @@ export const createApartment = async (req: Request, res: Response): Promise<void
       ownerPaymentAccount
     });
 
+    console.log('💾 Saving apartment to database...');
     await apartment.save();
+
+    console.log('✅ Apartment created successfully:', {
+      id: apartment._id,
+      title: apartment.title,
+      ownerId: apartment.ownerId,
+      ownerName: apartment.ownerName,
+      createdAt: apartment.createdAt
+    });
 
     res.status(201).json({
       message: 'Apartment created successfully',
@@ -223,11 +243,12 @@ export const updateApartment = async (req: Request, res: Response): Promise<void
     }
 
     // Check if user owns this apartment
-    if (!req.user) {
+    const reqUser = (req as any).user;
+    if (!reqUser) {
       res.status(401).json({ error: 'Authentication required' });
       return;
     }
-    if (apartment.ownerId !== req.user.clerkId && req.user.role !== 'admin') {
+    if (apartment.ownerId !== reqUser.clerkId && reqUser.role !== 'admin') {
       res.status(403).json({ error: 'Not authorized to update this apartment' });
       return;
     }
@@ -265,11 +286,12 @@ export const deleteApartment = async (req: Request, res: Response): Promise<void
     }
 
     // Check if user owns this apartment
-    if (!req.user) {
+    const reqUser = (req as any).user;
+    if (!reqUser) {
       res.status(401).json({ error: 'Authentication required' });
       return;
     }
-    if (apartment.ownerId !== req.user.clerkId && req.user.role !== 'admin') {
+    if (apartment.ownerId !== reqUser.clerkId && reqUser.role !== 'admin') {
       res.status(403).json({ error: 'Not authorized to delete this apartment' });
       return;
     }
@@ -288,7 +310,15 @@ export const deleteApartment = async (req: Request, res: Response): Promise<void
 // Get apartments owned by current user
 export const getMyApartments = async (req: Request, res: Response) => {
   try {
-    if (!req.user) {
+    const reqUser = (req as any).user;
+    console.log('🏠 Getting apartments for user:', reqUser?.clerkId);
+    console.log('👤 User details:', {
+      clerkId: reqUser?.clerkId,
+      email: reqUser?.email,
+      role: reqUser?.role
+    });
+
+    if (!reqUser) {
       res.status(401).json({ error: 'Authentication required' });
       return;
     }
@@ -299,14 +329,33 @@ export const getMyApartments = async (req: Request, res: Response) => {
     const limitNum = Math.min(50, Math.max(1, Number(limit)));
     const skip = (pageNum - 1) * limitNum;
 
+    console.log('🔍 Searching for apartments with ownerId:', reqUser.clerkId);
+
+    // Debug: Check what apartments exist in the database
+    const allApartments = await Apartment.find({}).select('title ownerId createdAt').sort({ createdAt: -1 }).limit(10);
+    console.log('🗂️ Recent apartments in database:');
+    allApartments.forEach((apt, i) => {
+      console.log(`   ${i + 1}. "${apt.title}" - Owner: ${apt.ownerId} - Created: ${apt.createdAt}`);
+    });
+
     const [apartments, total] = await Promise.all([
-      Apartment.find({ ownerId: req.user.clerkId })
+      Apartment.find({ ownerId: reqUser.clerkId })
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limitNum)
         .lean(),
-      Apartment.countDocuments({ ownerId: req.user.clerkId })
+      Apartment.countDocuments({ ownerId: reqUser.clerkId })
     ]);
+
+    console.log('📊 Found apartments for user:', apartments.length, 'Total:', total);
+    if (apartments.length > 0) {
+      console.log('✅ User apartments:');
+      apartments.forEach((apt, i) => {
+        console.log(`   ${i + 1}. "${apt.title}" - Created: ${apt.createdAt}`);
+      });
+    } else {
+      console.log('❌ No apartments found for this user');
+    }
 
     res.json({
       apartments,

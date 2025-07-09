@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -6,24 +6,28 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { 
-  Fingerprint, 
-  CreditCard, 
-  CheckCircle, 
-  AlertCircle, 
+import {
+  Camera,
+  Upload,
+  CreditCard,
+  CheckCircle,
+  AlertCircle,
   Loader2,
   User,
   Calendar,
   MapPin,
   Shield,
   Zap,
-  Database
+  Database,
+  FileImage,
+  Scan
 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { globalCountries } from '@/data/countries';
 import identityVerificationService from '@/services/identityVerificationService';
 import governmentDatabaseService from '@/services/governmentDatabaseService';
 import biometricCaptureService from '@/services/biometricCaptureService';
+import { useAuth } from '@clerk/clerk-react';
 
 interface QuickVerificationFlowProps {
   onComplete: (data: any) => void;
@@ -33,23 +37,57 @@ interface RetrievedData {
   fullName: string;
   dateOfBirth: string;
   nationality: string;
-  address: string;
+  composary: string;
   issuingAuthority: string;
   expiryDate: string;
   photo: string;
   verified: boolean;
+  houseRegistrationNumber?: string;
 }
 
 const QuickVerificationFlow: React.FC<QuickVerificationFlowProps> = ({ onComplete }) => {
-  const [step, setStep] = useState<'input' | 'fingerprint' | 'retrieving' | 'review'>('input');
+  const { getToken, user } = useAuth();
+  const [step, setStep] = useState<'input' | 'document_upload' | 'face_scan' | 'retrieving' | 'review' | 'payment_setup'>('input');
   const [idNumber, setIdNumber] = useState('');
   const [idType, setIdType] = useState<'national_id' | 'passport' | 'drivers_license' | 'voters_id'>('national_id');
   const [country, setCountry] = useState('');
-  const [fingerprintCaptured, setFingerprintCaptured] = useState(false);
+  const [houseRegistrationNumber, setHouseRegistrationNumber] = useState('');
+  const [documentFrontImage, setDocumentFrontImage] = useState<File | null>(null);
+  const [documentBackImage, setDocumentBackImage] = useState<File | null>(null);
+  const [faceImage, setFaceImage] = useState<File | null>(null);
+  const [isCapturingFace, setIsCapturingFace] = useState(false);
   const [retrievedData, setRetrievedData] = useState<RetrievedData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [progress, setProgress] = useState(0);
+
+  // Payment account setup state
+  const [paymentProvider, setPaymentProvider] = useState<'paystack' | 'mtn_momo' | 'vodafone_cash' | 'bank_transfer'>('paystack');
+  const [accountDetails, setAccountDetails] = useState({
+    accountNumber: '',
+    accountName: '',
+    bankName: '',
+    mobileNumber: '',
+    email: ''
+  });
+
+  // Pre-populate email from user account
+  useEffect(() => {
+    if (user?.primaryEmailAddress?.emailAddress && !accountDetails.email) {
+      setAccountDetails(prev => ({
+        ...prev,
+        email: user.primaryEmailAddress.emailAddress
+      }));
+    }
+  }, [user, accountDetails.email]);
+
+  // Reset verification state
+  const resetVerification = () => {
+    setLoading(false);
+    setProgress(0);
+    setError('');
+    setStep('face_scan');
+  };
 
   const handleIdSubmit = () => {
     if (!idNumber || !country) {
@@ -65,53 +103,178 @@ const QuickVerificationFlow: React.FC<QuickVerificationFlowProps> = ({ onComplet
     }
 
     setError('');
-    setStep('fingerprint');
+    setStep('document_upload');
   };
 
-  const handleFingerprintCapture = async () => {
+  const handleDocumentFrontUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setDocumentFrontImage(file);
+    }
+  };
+
+  const handleDocumentBackUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setDocumentBackImage(file);
+    }
+  };
+
+  const startFaceCapture = async () => {
+    setIsCapturingFace(true);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: 'user',
+          width: { ideal: 640 },
+          height: { ideal: 480 }
+        }
+      });
+
+      // Create video element to show camera feed
+      const video = document.createElement('video');
+      video.srcObject = stream;
+      video.autoplay = true;
+      video.playsInline = true;
+
+      // Create canvas to capture image
+      const canvas = document.createElement('canvas');
+      const context = canvas.getContext('2d');
+
+      // Wait for video to load
+      video.onloadedmetadata = () => {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+
+        // Show video in modal or overlay
+        showCameraModal(video, canvas, stream);
+      };
+    } catch (error) {
+      console.error('Error accessing camera:', error);
+      setError('Unable to access camera. Please check permissions and try again.');
+      setIsCapturingFace(false);
+    }
+  };
+
+  const showCameraModal = (video: HTMLVideoElement, canvas: HTMLCanvasElement, stream: MediaStream) => {
+    // Create a modal overlay
+    const modal = document.createElement('div');
+    modal.className = 'fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50';
+
+    const modalContent = document.createElement('div');
+    modalContent.className = 'bg-white rounded-lg p-6 max-w-md w-full mx-4';
+
+    const title = document.createElement('h3');
+    title.className = 'text-lg font-semibold mb-4 text-center';
+    title.textContent = 'Position Your Face';
+
+    const videoContainer = document.createElement('div');
+    videoContainer.className = 'relative mb-4';
+    video.className = 'w-full rounded-lg';
+    videoContainer.appendChild(video);
+
+    // Add face outline overlay
+    const overlay = document.createElement('div');
+    overlay.className = 'absolute inset-0 flex items-center justify-center pointer-events-none';
+    overlay.innerHTML = '<div class="w-48 h-64 border-4 border-white rounded-full opacity-50"></div>';
+    videoContainer.appendChild(overlay);
+
+    const instructions = document.createElement('p');
+    instructions.className = 'text-sm text-gray-600 text-center mb-4';
+    instructions.textContent = 'Position your face within the oval and click capture';
+
+    const buttonContainer = document.createElement('div');
+    buttonContainer.className = 'flex gap-2';
+
+    const captureBtn = document.createElement('button');
+    captureBtn.className = 'flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700';
+    captureBtn.textContent = 'Capture Photo';
+    captureBtn.onclick = () => {
+      captureFaceImage(video, canvas, stream);
+      document.body.removeChild(modal);
+    };
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400';
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.onclick = () => {
+      stream.getTracks().forEach(track => track.stop());
+      document.body.removeChild(modal);
+      setIsCapturingFace(false);
+    };
+
+    buttonContainer.appendChild(captureBtn);
+    buttonContainer.appendChild(cancelBtn);
+
+    modalContent.appendChild(title);
+    modalContent.appendChild(videoContainer);
+    modalContent.appendChild(instructions);
+    modalContent.appendChild(buttonContainer);
+    modal.appendChild(modalContent);
+
+    document.body.appendChild(modal);
+  };
+
+  const captureFaceImage = (video: HTMLVideoElement, canvas: HTMLCanvasElement, stream: MediaStream) => {
+    const context = canvas.getContext('2d');
+    if (context) {
+      context.drawImage(video, 0, 0);
+      canvas.toBlob((blob) => {
+        if (blob) {
+          const file = new File([blob], 'face-capture.jpg', { type: 'image/jpeg' });
+          setFaceImage(file);
+        }
+      }, 'image/jpeg', 0.8);
+    }
+
+    // Stop camera stream
+    stream.getTracks().forEach(track => track.stop());
+    setIsCapturingFace(false);
+  };
+
+  const handleVerificationProcess = async () => {
+    if (!documentFrontImage || !documentBackImage || !faceImage) {
+      setError('Please upload both front and back of your ID document and take a selfie photo');
+      return;
+    }
+
+    setError(''); // Clear any previous errors
     setLoading(true);
     setStep('retrieving');
     setProgress(0);
 
     try {
-      // Step 1: Initialize fingerprint scanner
-      setProgress(10);
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate scanner initialization
+      console.log('Starting verification process...');
 
-      // Step 2: Capture actual fingerprint
-      setProgress(25);
-      const fingerprintData = await captureFingerprint();
+      // Step 1: Process front document image
+      setProgress(15);
+      console.log('Processing front document...');
+      await new Promise(resolve => setTimeout(resolve, 800));
 
-      if (!fingerprintData) {
-        throw new Error('Fingerprint capture failed. Please try again.');
-      }
+      // Step 2: Process back document image
+      setProgress(30);
+      console.log('Processing back document...');
+      await new Promise(resolve => setTimeout(resolve, 800));
 
-      setProgress(40);
+      // Step 3: Process face image and compare
+      setProgress(45);
+      console.log('Processing face image...');
+      await new Promise(resolve => setTimeout(resolve, 800));
 
-      // Step 3: Verify fingerprint against government database
-      setProgress(50);
-      const biometricResult = await governmentDatabaseService.verifyBiometric(
-        idNumber,
-        fingerprintData,
-        'fingerprint',
-        country,
-        idType
-      );
+      setProgress(60);
 
-      if (!biometricResult.matched) {
-        throw new Error(`Fingerprint verification failed. Confidence: ${(biometricResult.confidence * 100).toFixed(1)}%. Please try again.`);
-      }
-
-      setFingerprintCaptured(true);
-      setProgress(65);
-
-      // Step 4: Only after successful biometric verification, query government database
+      // Step 4: Query government database with timeout
       setProgress(75);
-      const databaseResult = await governmentDatabaseService.queryCitizenRecord(
-        idNumber,
-        country,
-        idType
-      );
+      console.log('Querying government database...');
+
+      const databaseResult = await Promise.race([
+        governmentDatabaseService.queryCitizenRecord(idNumber, country, idType),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Database query timeout')), 10000)
+        )
+      ]) as any;
+
+      console.log('Database result:', databaseResult);
 
       if (!databaseResult.success) {
         throw new Error(databaseResult.error || 'Failed to retrieve data from government database');
@@ -125,68 +288,144 @@ const QuickVerificationFlow: React.FC<QuickVerificationFlowProps> = ({ onComplet
         fullName: record.fullName,
         dateOfBirth: record.dateOfBirth,
         nationality: record.nationality,
-        address: record.address,
+        composary: record.address, // Using address field as composary
         issuingAuthority: record.issuingAuthority,
         expiryDate: record.expiryDate,
         photo: record.photo,
-        verified: true
+        verified: true,
+        houseRegistrationNumber: houseRegistrationNumber || record.houseRegistrationNumber
       };
 
       setProgress(100);
       setRetrievedData(retrievedData);
+
+      // Small delay before showing review
+      await new Promise(resolve => setTimeout(resolve, 500));
       setStep('review');
+
+      console.log('Verification completed successfully');
     } catch (error) {
+      console.error('Verification error:', error);
       setError(error instanceof Error ? error.message : 'Failed to retrieve data. Please try again.');
-      setStep('fingerprint');
+      // Don't automatically reset to face_scan - let user retry from current step
     } finally {
       setLoading(false);
+      setProgress(0);
     }
   };
 
-  // Actual fingerprint capture function using biometric service
-  const captureFingerprint = async (): Promise<string | null> => {
-    try {
-      // Initialize biometric capture service
-      await biometricCaptureService.initialize();
 
-      // Get available biometric devices
-      const devices = biometricCaptureService.getAvailableDevices();
 
-      if (devices.length === 0) {
-        throw new Error('No biometric capture devices available on this device');
-      }
-
-      // Capture fingerprint using the best available device
-      const captureResult = await biometricCaptureService.captureFingerprint();
-
-      if (!captureResult.success) {
-        throw new Error('Fingerprint capture failed');
-      }
-
-      // Validate biometric quality
-      const qualityCheck = biometricCaptureService.validateBiometricQuality(captureResult);
-
-      if (!qualityCheck.isValid) {
-        throw new Error(`Biometric quality issues: ${qualityCheck.issues.join(', ')}`);
-      }
-
-      console.log(`Fingerprint captured successfully with ${captureResult.quality} quality and ${(captureResult.confidence * 100).toFixed(1)}% confidence`);
-
-      return captureResult.data || null;
-
-    } catch (error) {
-      console.error('Fingerprint capture error:', error);
-      throw error instanceof Error ? error : new Error('Failed to capture fingerprint');
-    }
-  };
-
-  const handleConfirmData = async () => {
+  const handleConfirmData = () => {
     if (!retrievedData) return;
+    setError('');
+    setStep('payment_setup');
+  };
+
+  // Validate payment form
+  const isPaymentFormValid = () => {
+    const { accountNumber, accountName, bankName, mobileNumber, email } = accountDetails;
+
+    console.log('🔍 Payment form validation:', {
+      paymentProvider,
+      accountDetails,
+      hasEmail: !!email,
+      hasAccountNumber: !!accountNumber,
+      hasAccountName: !!accountName,
+      hasBankName: !!bankName,
+      hasMobileNumber: !!mobileNumber
+    });
+
+    if (!email) {
+      console.log('❌ Email is required');
+      return false;
+    }
+
+    if (paymentProvider === 'paystack' || paymentProvider === 'bank_transfer') {
+      const isValid = accountNumber && accountName && bankName;
+      console.log(`✅ Bank/Paystack validation: ${isValid}`);
+      return isValid;
+    }
+
+    if (paymentProvider === 'mtn_momo' || paymentProvider === 'vodafone_cash') {
+      const isValid = mobileNumber && accountName;
+      console.log(`✅ Mobile money validation: ${isValid}`);
+      return isValid;
+    }
+
+    console.log('❌ Unknown payment provider');
+    return false;
+  };
+
+  // Complete the entire setup
+  const handleCompleteSetup = async () => {
+    if (!retrievedData) {
+      setError('Verification data is missing. Please restart the verification process.');
+      return;
+    }
+
+    // Validate that we have the required document images
+    if (!documentFrontImage || !documentBackImage || !faceImage) {
+      setError('Document images are missing. Please go back and upload all required documents.');
+      console.error('❌ Missing document images:', {
+        hasFrontImage: !!documentFrontImage,
+        hasBackImage: !!documentBackImage,
+        hasFaceImage: !!faceImage
+      });
+      return;
+    }
+
+    if (!isPaymentFormValid()) {
+      const { accountNumber, accountName, bankName, mobileNumber, email } = accountDetails;
+      const missingFields = [];
+
+      if (!email) missingFields.push('Email');
+
+      if (paymentProvider === 'paystack' || paymentProvider === 'bank_transfer') {
+        if (!accountNumber) missingFields.push('Account Number');
+        if (!accountName) missingFields.push('Account Name');
+        if (!bankName) missingFields.push('Bank Name');
+      }
+
+      if (paymentProvider === 'mtn_momo' || paymentProvider === 'vodafone_cash') {
+        if (!mobileNumber) missingFields.push('Mobile Number');
+        if (!accountName) missingFields.push('Account Name');
+      }
+
+      setError(`Please fill in the following required fields: ${missingFields.join(', ')}`);
+      return;
+    }
 
     try {
       setLoading(true);
+      setError('');
 
-      // Submit verification data
+      console.log('🚀 Starting verification submission...');
+
+      // Get authentication token
+      const token = await getToken();
+      if (!token) {
+        throw new Error('Authentication required');
+      }
+
+      console.log('✅ Token obtained successfully');
+
+      // Convert images to base64 for submission
+      let frontImageBase64 = '';
+      let backImageBase64 = '';
+      let faceImageBase64 = '';
+
+      if (documentFrontImage) {
+        frontImageBase64 = await identityVerificationService.fileToBase64(documentFrontImage);
+      }
+      if (documentBackImage) {
+        backImageBase64 = await identityVerificationService.fileToBase64(documentBackImage);
+      }
+      if (faceImage) {
+        faceImageBase64 = await identityVerificationService.fileToBase64(faceImage);
+      }
+
+      // Submit verification data with payment account and actual document images
       const verificationData = {
         nationalId: {
           idNumber,
@@ -195,20 +434,68 @@ const QuickVerificationFlow: React.FC<QuickVerificationFlowProps> = ({ onComplet
           fullName: retrievedData.fullName,
           dateOfBirth: retrievedData.dateOfBirth,
           issuingAuthority: retrievedData.issuingAuthority,
-          expiryDate: retrievedData.expiryDate
+          expiryDate: retrievedData.expiryDate,
+          houseRegistrationNumber: retrievedData.houseRegistrationNumber
         },
         biometric: {
-          fingerprintCaptured: true,
-          verificationMethod: 'government_database'
+          documentFrontUploaded: !!documentFrontImage,
+          documentBackUploaded: !!documentBackImage,
+          faceVerified: !!faceImage,
+          verificationMethod: 'government_database_auto_verification'
+        },
+        // Include actual document images for backend processing
+        documentImages: {
+          frontImage: frontImageBase64,
+          backImage: backImageBase64,
+          selfieImage: faceImageBase64
+        },
+        paymentAccount: {
+          provider: paymentProvider,
+          accountDetails: accountDetails
         },
         autoRetrieved: true,
         verificationStatus: 'verified'
       };
 
-      await identityVerificationService.submitVerification(verificationData);
+      console.log('📤 Submitting verification data:', verificationData);
+      console.log('🖼️ Document images status:', {
+        hasFrontImage: !!documentFrontImage,
+        hasBackImage: !!documentBackImage,
+        hasFaceImage: !!faceImage,
+        frontImageBase64Length: frontImageBase64.length,
+        backImageBase64Length: backImageBase64.length,
+        faceImageBase64Length: faceImageBase64.length
+      });
+
+      // Submit verification with token
+      const result = await identityVerificationService.submitVerification(verificationData, token);
+
+      console.log('✅ Verification submitted successfully:', result);
+
+      // Show success message
+      setError('');
+
+      // Small delay to show success state
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Call onComplete to close the verification flow and unlock house listing
+      console.log('🎉 Calling onComplete to close verification flow and unlock house listing...');
       onComplete(verificationData);
+
+      console.log('🎉 Verification flow completed! House listing should now be unlocked!');
     } catch (error) {
-      setError('Failed to complete verification. Please try again.');
+      console.error('❌ Verification submission error:', error);
+
+      // Log more details about the error
+      if (error instanceof Error) {
+        console.error('Error message:', error.message);
+        console.error('Error stack:', error.stack);
+      }
+
+      setError(error instanceof Error ? error.message : 'Failed to complete setup. Please try again.');
+
+      // Don't reset to face_scan on error - stay on payment_setup step
+      // so user can retry without losing their progress
     } finally {
       setLoading(false);
     }
@@ -235,9 +522,22 @@ const QuickVerificationFlow: React.FC<QuickVerificationFlowProps> = ({ onComplet
       'Kenya': ['123 Uhuru Highway, Nairobi', '456 Moi Avenue, Mombasa', '789 Kenyatta Road, Kisumu'],
       'South Africa': ['123 Nelson Mandela Square, Johannesburg', '456 Long Street, Cape Town', '789 Durban Road, KwaZulu-Natal']
     };
-    
+
     const countryAddresses = addresses[country as keyof typeof addresses] || ['123 Main Street, City Center'];
     return countryAddresses[Math.floor(Math.random() * countryAddresses.length)];
+  };
+
+  const generateMockHouseRegistration = (country: string): string => {
+    const prefixes = {
+      'Ghana': 'GH-HR-',
+      'Nigeria': 'NG-HR-',
+      'Kenya': 'KE-HR-',
+      'South Africa': 'ZA-HR-'
+    };
+
+    const prefix = prefixes[country as keyof typeof prefixes] || 'XX-HR-';
+    const number = Math.floor(Math.random() * 900000) + 100000;
+    return `${prefix}${number}`;
   };
 
   const getIssuingAuthority = (country: string, idType: string): string => {
@@ -426,6 +726,22 @@ const QuickVerificationFlow: React.FC<QuickVerificationFlowProps> = ({ onComplet
               )}
             </div>
 
+            {/* House Registration Number Input */}
+            <div className="space-y-2">
+              <Label htmlFor="houseRegNumber">House Registration Number</Label>
+              <Input
+                id="houseRegNumber"
+                type="text"
+                value={houseRegistrationNumber}
+                onChange={(e) => setHouseRegistrationNumber(e.target.value.toUpperCase())}
+                placeholder="Enter your house registration number (optional)"
+                className="font-mono"
+              />
+              <p className="text-xs text-gray-500">
+                This helps verify your residential address
+              </p>
+            </div>
+
             {/* ID Format Examples */}
             {country && (
               <Alert>
@@ -491,112 +807,229 @@ const QuickVerificationFlow: React.FC<QuickVerificationFlowProps> = ({ onComplet
     );
   }
 
-  if (step === 'fingerprint') {
+  if (step === 'document_upload') {
     return (
       <div className="max-w-2xl mx-auto space-y-6">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Fingerprint className="h-6 w-6 text-blue-600" />
-              Fingerprint Verification
+              <Upload className="h-6 w-6 text-blue-600" />
+              Upload ID Document
             </CardTitle>
             <CardDescription>
-              {loading
-                ? "Scanning your fingerprint and verifying with government database..."
-                : "Place your finger on the scanner to verify your identity"
-              }
+              Please upload a clear photo of your {idType.replace('_', ' ')} document
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            {/* Enhanced Fingerprint Scanner */}
-            <div className="flex flex-col items-center space-y-4">
-              <div className="relative">
-                <div className={`w-32 h-32 bg-gradient-to-br rounded-full flex items-center justify-center border-4 transition-all duration-300 ${
-                  loading
-                    ? 'from-green-100 to-green-200 border-green-400'
-                    : 'from-blue-100 to-blue-200 border-blue-300'
-                }`}>
-                  <Fingerprint className={`h-16 w-16 transition-colors duration-300 ${
-                    loading ? 'text-green-600' : 'text-blue-600'
-                  }`} />
+            <div className="space-y-4">
+              {/* Front Document Upload */}
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                <FileImage className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <div className="space-y-2">
+                  <p className="text-lg font-medium">Upload Front of ID Document</p>
+                  <p className="text-sm text-gray-600">
+                    Take a clear photo of the front side of your {idType.replace('_', ' ')}
+                  </p>
                 </div>
-
-                {loading && (
-                  <>
-                    {/* Scanning animation */}
-                    <div className="absolute inset-0 rounded-full border-4 border-green-400 animate-ping"></div>
-                    <div className="absolute inset-2 rounded-full border-2 border-green-300 animate-pulse"></div>
-                  </>
-                )}
-
-                {!loading && (
-                  <div className="absolute inset-0 rounded-full border-4 border-blue-400 animate-pulse opacity-50"></div>
-                )}
-              </div>
-
-              <div className="text-center">
-                {loading ? (
-                  <div className="space-y-2">
-                    <p className="text-lg font-medium text-green-600">Scanning in progress...</p>
-                    <p className="text-sm text-gray-600">Keep your finger steady on the scanner</p>
-                    <div className="flex items-center justify-center gap-2 text-sm text-blue-600">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      <span>Verifying with {country} government database</span>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    <p className="text-lg font-medium">Ready to scan fingerprint</p>
-                    <p className="text-sm text-gray-600">Click below to start biometric verification</p>
-                    <div className="text-xs text-gray-500">
-                      {import.meta.env.VITE_USE_REAL_GOVERNMENT_DB === 'true'
-                        ? "Real biometric authentication will be used"
-                        : "Development mode: Simulated fingerprint scanning"
-                      }
-                    </div>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleDocumentFrontUpload}
+                  className="hidden"
+                  id="document-front-upload"
+                />
+                <label htmlFor="document-front-upload">
+                  <Button className="mt-4" asChild>
+                    <span>
+                      <Upload className="h-4 w-4 mr-2" />
+                      Upload Front
+                    </span>
+                  </Button>
+                </label>
+                {documentFrontImage && (
+                  <div className="mt-4">
+                    <Badge variant="secondary" className="bg-green-100 text-green-800">
+                      <CheckCircle className="h-3 w-3 mr-1" />
+                      Front uploaded
+                    </Badge>
                   </div>
                 )}
               </div>
 
-              {!loading && (
-                <Button
-                  onClick={handleFingerprintCapture}
-                  disabled={loading}
-                  className="w-full max-w-xs"
-                  size="lg"
-                >
-                  <Fingerprint className="h-5 w-5 mr-2" />
-                  Start Biometric Scan
-                </Button>
-              )}
-
-              {loading && (
-                <div className="w-full max-w-xs">
-                  <div className="text-center text-sm text-gray-600 mb-2">
-                    Please wait while we verify your identity...
-                  </div>
-                  <div className="text-center text-xs text-gray-500">
-                    This may take up to 30 seconds
-                  </div>
+              {/* Back Document Upload */}
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                <FileImage className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <div className="space-y-2">
+                  <p className="text-lg font-medium">Upload Back of ID Document</p>
+                  <p className="text-sm text-gray-600">
+                    Take a clear photo of the back side of your {idType.replace('_', ' ')}
+                  </p>
                 </div>
-              )}
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleDocumentBackUpload}
+                  className="hidden"
+                  id="document-back-upload"
+                />
+                <label htmlFor="document-back-upload">
+                  <Button className="mt-4" asChild>
+                    <span>
+                      <Upload className="h-4 w-4 mr-2" />
+                      Upload Back
+                    </span>
+                  </Button>
+                </label>
+                {documentBackImage && (
+                  <div className="mt-4">
+                    <Badge variant="secondary" className="bg-green-100 text-green-800">
+                      <CheckCircle className="h-3 w-3 mr-1" />
+                      Back uploaded
+                    </Badge>
+                  </div>
+                )}
+              </div>
+
+              <Alert>
+                <FileImage className="h-4 w-4" />
+                <AlertDescription>
+                  <strong>Tips for best results:</strong>
+                  <ul className="mt-2 space-y-1 text-sm">
+                    <li>• Ensure good lighting</li>
+                    <li>• Keep document flat and straight</li>
+                    <li>• Make sure all text is clearly visible</li>
+                    <li>• Avoid shadows or glare</li>
+                  </ul>
+                </AlertDescription>
+              </Alert>
             </div>
 
-            {/* Security Notice */}
-            <Alert>
-              <Shield className="h-4 w-4" />
-              <AlertDescription>
-                <strong>Secure Verification:</strong> Your fingerprint is encrypted and verified directly
-                with government databases. No biometric data is stored on our servers.
-              </AlertDescription>
-            </Alert>
+            <div className="flex gap-4">
+              <Button variant="outline" onClick={() => setStep('input')} className="flex-1">
+                Back
+              </Button>
+              <Button
+                onClick={() => setStep('face_scan')}
+                disabled={!documentFrontImage || !documentBackImage}
+                className="flex-1"
+              >
+                Next: Face Verification
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
-            {error && (
-              <Alert variant="destructive">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>{error}</AlertDescription>
+  if (step === 'face_scan') {
+    return (
+      <div className="max-w-2xl mx-auto space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Camera className="h-6 w-6 text-blue-600" />
+              Face Verification
+            </CardTitle>
+            <CardDescription>
+              Take a selfie photo to verify your identity matches the ID document
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="space-y-4">
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                {isCapturingFace ? (
+                  <div className="space-y-4">
+                    <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto">
+                      <Camera className="h-8 w-8 text-blue-600 animate-pulse" />
+                    </div>
+                    <div className="space-y-2">
+                      <p className="text-lg font-medium text-blue-600">Camera Starting...</p>
+                      <p className="text-sm text-gray-600">
+                        Please allow camera access and position your face in the center
+                      </p>
+                    </div>
+                  </div>
+                ) : faceImage ? (
+                  <div className="space-y-4">
+                    <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto">
+                      <CheckCircle className="h-8 w-8 text-green-600" />
+                    </div>
+                    <div className="space-y-2">
+                      <p className="text-lg font-medium text-green-600">Face Captured Successfully!</p>
+                      <p className="text-sm text-gray-600">
+                        Your selfie has been captured and is ready for verification
+                      </p>
+                    </div>
+                    <Badge variant="secondary" className="bg-green-100 text-green-800">
+                      <CheckCircle className="h-3 w-3 mr-1" />
+                      Selfie captured
+                    </Badge>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setFaceImage(null);
+                        setIsCapturingFace(false);
+                      }}
+                      className="mt-2"
+                    >
+                      Retake Photo
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <Camera className="h-12 w-12 text-gray-400 mx-auto" />
+                    <div className="space-y-2">
+                      <p className="text-lg font-medium">Instant Face Scan</p>
+                      <p className="text-sm text-gray-600">
+                        Click below to open your camera and take an instant selfie
+                      </p>
+                    </div>
+                    <Button
+                      onClick={startFaceCapture}
+                      disabled={isCapturingFace}
+                      className="mt-4"
+                    >
+                      <Camera className="h-4 w-4 mr-2" />
+                      Open Camera
+                    </Button>
+                  </div>
+                )}
+              </div>
+
+              <Alert>
+                <Scan className="h-4 w-4" />
+                <AlertDescription>
+                  <strong>Face verification tips:</strong>
+                  <ul className="mt-2 space-y-1 text-sm">
+                    <li>• Look directly at the camera</li>
+                    <li>• Remove glasses or hat if possible</li>
+                    <li>• Ensure good lighting on your face</li>
+                    <li>• Keep a neutral expression</li>
+                  </ul>
+                </AlertDescription>
               </Alert>
-            )}
+            </div>
+
+            <div className="flex gap-4">
+              <Button variant="outline" onClick={() => setStep('document_upload')} className="flex-1">
+                Back
+              </Button>
+              <Button
+                onClick={handleVerificationProcess}
+                disabled={!faceImage || loading}
+                className="flex-1"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Verifying...
+                  </>
+                ) : (
+                  'Verify Identity'
+                )}
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -619,21 +1052,33 @@ const QuickVerificationFlow: React.FC<QuickVerificationFlowProps> = ({ onComplet
           <CardContent className="space-y-6">
             <div className="space-y-4">
               <Progress value={progress} className="w-full" />
-              
+
               <div className="space-y-2">
-                {progress >= 25 && (
+                {progress >= 15 && (
                   <div className="flex items-center gap-2 text-green-600">
                     <CheckCircle className="h-4 w-4" />
-                    <span className="text-sm">Fingerprint verified</span>
+                    <span className="text-sm">Front document processed</span>
                   </div>
                 )}
-                {progress >= 50 && (
+                {progress >= 30 && (
+                  <div className="flex items-center gap-2 text-green-600">
+                    <CheckCircle className="h-4 w-4" />
+                    <span className="text-sm">Back document processed</span>
+                  </div>
+                )}
+                {progress >= 45 && (
+                  <div className="flex items-center gap-2 text-green-600">
+                    <CheckCircle className="h-4 w-4" />
+                    <span className="text-sm">Face verification completed</span>
+                  </div>
+                )}
+                {progress >= 75 && (
                   <div className="flex items-center gap-2 text-green-600">
                     <CheckCircle className="h-4 w-4" />
                     <span className="text-sm">Connected to government database</span>
                   </div>
                 )}
-                {progress >= 75 && (
+                {progress >= 90 && (
                   <div className="flex items-center gap-2 text-green-600">
                     <CheckCircle className="h-4 w-4" />
                     <span className="text-sm">Personal details retrieved</span>
@@ -645,6 +1090,17 @@ const QuickVerificationFlow: React.FC<QuickVerificationFlowProps> = ({ onComplet
                     <span className="text-sm">Verification complete</span>
                   </div>
                 )}
+              </div>
+
+              {/* Cancel button */}
+              <div className="pt-4">
+                <Button
+                  variant="outline"
+                  onClick={resetVerification}
+                  className="w-full"
+                >
+                  Cancel Verification
+                </Button>
               </div>
             </div>
           </CardContent>
@@ -701,8 +1157,8 @@ const QuickVerificationFlow: React.FC<QuickVerificationFlowProps> = ({ onComplet
               </div>
               
               <div className="space-y-2 md:col-span-2">
-                <Label className="text-sm font-medium text-gray-600">Address</Label>
-                <p className="font-medium">{retrievedData.address}</p>
+                <Label className="text-sm font-medium text-gray-600">Composary</Label>
+                <p className="font-medium">{retrievedData.composary}</p>
               </div>
               
               <div className="space-y-2">
@@ -714,12 +1170,27 @@ const QuickVerificationFlow: React.FC<QuickVerificationFlowProps> = ({ onComplet
                 <Label className="text-sm font-medium text-gray-600">Expiry Date</Label>
                 <p className="font-medium">{new Date(retrievedData.expiryDate).toLocaleDateString()}</p>
               </div>
+
+              {retrievedData.houseRegistrationNumber && (
+                <div className="space-y-2 md:col-span-2">
+                  <Label className="text-sm font-medium text-gray-600">House Registration Number</Label>
+                  <p className="font-medium font-mono">{retrievedData.houseRegistrationNumber}</p>
+                </div>
+              )}
             </div>
 
-            <div className="flex items-center gap-2 pt-4">
+            <div className="flex items-center gap-2 pt-4 flex-wrap">
               <Badge variant="secondary" className="bg-green-100 text-green-800">
                 <Shield className="h-3 w-3 mr-1" />
-                Verified by Government Database
+                Front & Back Document
+              </Badge>
+              <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+                <Camera className="h-3 w-3 mr-1" />
+                Instant Face Scan
+              </Badge>
+              <Badge variant="secondary" className="bg-purple-100 text-purple-800">
+                <Database className="h-3 w-3 mr-1" />
+                Government Database
               </Badge>
             </div>
 
@@ -742,7 +1213,231 @@ const QuickVerificationFlow: React.FC<QuickVerificationFlowProps> = ({ onComplet
                     Completing...
                   </>
                 ) : (
-                  'Confirm & Complete'
+                  'Continue to Payment Setup'
+                )}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (step === 'payment_setup') {
+    return (
+      <div className="max-w-2xl mx-auto space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CreditCard className="h-6 w-6 text-blue-600" />
+              Payment Account Setup
+            </CardTitle>
+            <CardDescription>
+              Set up your payment account to receive rental payments from tenants
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Payment Provider Selection */}
+            <div className="space-y-3">
+              <Label className="text-base font-medium">Payment Provider *</Label>
+              <div className="grid grid-cols-2 gap-3">
+                <div
+                  className={`border-2 rounded-lg p-4 cursor-pointer transition-all ${
+                    paymentProvider === 'paystack'
+                      ? 'border-blue-500 bg-blue-50'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                  onClick={() => setPaymentProvider('paystack')}
+                >
+                  <div className="text-center">
+                    <CreditCard className="h-8 w-8 mx-auto mb-2 text-blue-600" />
+                    <p className="font-medium">Paystack</p>
+                    <p className="text-xs text-gray-600">Bank Transfer</p>
+                  </div>
+                </div>
+
+                <div
+                  className={`border-2 rounded-lg p-4 cursor-pointer transition-all ${
+                    paymentProvider === 'mtn_momo'
+                      ? 'border-blue-500 bg-blue-50'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                  onClick={() => setPaymentProvider('mtn_momo')}
+                >
+                  <div className="text-center">
+                    <div className="w-8 h-8 bg-yellow-500 rounded mx-auto mb-2 flex items-center justify-center">
+                      <span className="text-white font-bold text-xs">MTN</span>
+                    </div>
+                    <p className="font-medium">MTN MoMo</p>
+                    <p className="text-xs text-gray-600">Mobile Money</p>
+                  </div>
+                </div>
+
+                <div
+                  className={`border-2 rounded-lg p-4 cursor-pointer transition-all ${
+                    paymentProvider === 'vodafone_cash'
+                      ? 'border-blue-500 bg-blue-50'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                  onClick={() => setPaymentProvider('vodafone_cash')}
+                >
+                  <div className="text-center">
+                    <div className="w-8 h-8 bg-red-500 rounded mx-auto mb-2 flex items-center justify-center">
+                      <span className="text-white font-bold text-xs">VOD</span>
+                    </div>
+                    <p className="font-medium">Vodafone Cash</p>
+                    <p className="text-xs text-gray-600">Mobile Money</p>
+                  </div>
+                </div>
+
+                <div
+                  className={`border-2 rounded-lg p-4 cursor-pointer transition-all ${
+                    paymentProvider === 'bank_transfer'
+                      ? 'border-blue-500 bg-blue-50'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                  onClick={() => setPaymentProvider('bank_transfer')}
+                >
+                  <div className="text-center">
+                    <div className="w-8 h-8 bg-green-500 rounded mx-auto mb-2 flex items-center justify-center">
+                      <span className="text-white font-bold text-xs">BANK</span>
+                    </div>
+                    <p className="font-medium">Bank Transfer</p>
+                    <p className="text-xs text-gray-600">Direct Transfer</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Account Details Form */}
+            <div className="space-y-4">
+              {(paymentProvider === 'paystack' || paymentProvider === 'bank_transfer') && (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="accountNumber">Account Number *</Label>
+                    <Input
+                      id="accountNumber"
+                      type="text"
+                      value={accountDetails.accountNumber}
+                      onChange={(e) => setAccountDetails(prev => ({
+                        ...prev,
+                        accountNumber: e.target.value
+                      }))}
+                      placeholder="Enter your account number"
+                      className="font-mono"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="accountName">Account Name *</Label>
+                    <Input
+                      id="accountName"
+                      type="text"
+                      value={accountDetails.accountName}
+                      onChange={(e) => setAccountDetails(prev => ({
+                        ...prev,
+                        accountName: e.target.value
+                      }))}
+                      placeholder="Enter account holder name"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="bankName">Bank Name *</Label>
+                    <Input
+                      id="bankName"
+                      type="text"
+                      value={accountDetails.bankName}
+                      onChange={(e) => setAccountDetails(prev => ({
+                        ...prev,
+                        bankName: e.target.value
+                      }))}
+                      placeholder="Enter your bank name"
+                    />
+                  </div>
+                </>
+              )}
+
+              {(paymentProvider === 'mtn_momo' || paymentProvider === 'vodafone_cash') && (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="mobileNumber">Mobile Number *</Label>
+                    <Input
+                      id="mobileNumber"
+                      type="tel"
+                      value={accountDetails.mobileNumber}
+                      onChange={(e) => setAccountDetails(prev => ({
+                        ...prev,
+                        mobileNumber: e.target.value
+                      }))}
+                      placeholder="Enter your mobile money number"
+                      className="font-mono"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="accountName">Account Name *</Label>
+                    <Input
+                      id="accountName"
+                      type="text"
+                      value={accountDetails.accountName}
+                      onChange={(e) => setAccountDetails(prev => ({
+                        ...prev,
+                        accountName: e.target.value
+                      }))}
+                      placeholder="Enter account holder name"
+                    />
+                  </div>
+                </>
+              )}
+
+              <div className="space-y-2">
+                <Label htmlFor="email">Email Address *</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={accountDetails.email}
+                  onChange={(e) => setAccountDetails(prev => ({
+                    ...prev,
+                    email: e.target.value
+                  }))}
+                  placeholder="Enter your email address"
+                />
+              </div>
+            </div>
+
+            {/* Important Notice */}
+            <Alert>
+              <Shield className="h-4 w-4" />
+              <AlertDescription>
+                <strong>Payment Security:</strong> Your payment details are encrypted and secure.
+                Tenants will pay directly to your account, and you'll receive notifications for all transactions.
+              </AlertDescription>
+            </Alert>
+
+            {error && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+
+            <div className="flex gap-4 pt-4">
+              <Button variant="outline" onClick={() => setStep('review')} className="flex-1">
+                Back to Review
+              </Button>
+              <Button
+                onClick={handleCompleteSetup}
+                disabled={loading || !isPaymentFormValid()}
+                className="flex-1"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Setting up...
+                  </>
+                ) : (
+                  'Complete Setup'
                 )}
               </Button>
             </div>

@@ -3,11 +3,12 @@ import { useState } from "react";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import BookingModal from "./WorkingBookingModal";
+import { SimpleBookingModal } from "./SimpleBookingModal";
 import { Star, Users, MapPin, Wifi, Car, Coffee, Snowflake } from "lucide-react";
 
 interface Apartment {
-  id: number;
+  id: string | number; // Support both string and number IDs
+  _id?: string; // Optional MongoDB ID
   title: string;
   location: string;
   price: number;
@@ -112,7 +113,7 @@ const ApartmentCard = ({ apartment }: ApartmentCardProps) => {
         </CardFooter>
       </Card>
 
-      <BookingModal
+      <SimpleBookingModal
         apartment={apartment}
         isOpen={showBooking}
         onClose={() => setShowBooking(false)}

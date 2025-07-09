@@ -26,6 +26,16 @@ app.use(morgan('combined'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Add request logging middleware
+app.use((req, res, next) => {
+  console.log(`📥 ${req.method} ${req.path} - ${new Date().toISOString()}`);
+  if (req.method === 'POST' && req.path.includes('/bookings')) {
+    console.log('📋 Booking request body:', req.body);
+    console.log('🔐 Authorization header:', req.headers.authorization ? 'Present' : 'Missing');
+  }
+  next();
+});
+
 // Clerk authentication middleware
 app.use(clerkMiddleware());
 
@@ -45,6 +55,9 @@ import userRoutes from './routes/users';
 import paymentRoutes from './routes/paymentRoutes';
 import userPaymentRoutes from './routes/userPaymentRoutes';
 import identityVerificationRoutes from './routes/identityVerificationRoutes';
+import notificationRoutes from './routes/notifications';
+import chatRoutes from './routes/chats';
+import AutoCheckoutService from './services/autoCheckoutService';
 
 app.use('/api/apartments', (req, res, next) => {
   console.log(`🏠 Apartment route hit: ${req.method} ${req.path}`);
@@ -52,11 +65,20 @@ app.use('/api/apartments', (req, res, next) => {
   console.log('📋 Request headers:', req.headers);
   next();
 }, apartmentRoutes);
-app.use('/api/bookings', bookingRoutes);
+app.use('/api/bookings', (req, res, next) => {
+  console.log(`📋 Booking route hit: ${req.method} ${req.path}`);
+  console.log('🔐 Authorization header:', req.headers.authorization ? 'Present' : 'Missing');
+  if (req.method === 'PATCH') {
+    console.log('📦 PATCH Request body:', JSON.stringify(req.body, null, 2));
+  }
+  next();
+}, bookingRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/user-payments', userPaymentRoutes);
 app.use('/api/identity-verification', identityVerificationRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/chats', chatRoutes);
 
 // Error handling middleware
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
@@ -79,6 +101,9 @@ const startServer = async () => {
     app.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);
       console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
+
+      // Start auto checkout scheduler
+      AutoCheckoutService.startScheduler();
     });
   } catch (error) {
     console.error('Failed to start server:', error);

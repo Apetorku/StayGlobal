@@ -2,51 +2,33 @@ import mongoose, { Document, Schema } from 'mongoose';
 
 export interface IIdentityVerification extends Document {
   userId: string; // Clerk user ID
-  nationalId: {
+  personalInfo: {
+    fullName: string;
     idNumber: string;
     idType: 'national_id' | 'passport' | 'drivers_license' | 'voters_id';
     country: string;
-    fullName: string;
     dateOfBirth: Date;
+    phoneNumber: string;
   };
-  biometricData: {
-    fingerprintHash: string; // Hashed fingerprint template
-    fingerprintTemplate: string; // Encrypted biometric template
-    captureDevice?: string;
-    captureQuality: number; // Quality score 0-100
-    capturedAt: Date;
+  houseRegistration: {
+    registrationNumber: string;
+    address: string;
+    registrationDate?: Date;
+    issuingAuthority?: string;
   };
-  documentImages: {
-    frontImage: string; // URL or base64 of ID front
-    backImage?: string; // URL or base64 of ID back
-    selfieImage: string; // URL or base64 of user selfie
+  verificationStatus: 'pending' | 'verified' | 'rejected' | 'expired';
+  fraudPrevention: {
+    ipAddress: string;
+    deviceFingerprint: string;
+    submissionTimestamp: Date;
+    duplicateCheckPassed: boolean;
+    riskScore: number; // 0-100 (0 = low risk, 100 = high risk)
   };
-  verificationStatus: 'pending' | 'in_review' | 'verified' | 'rejected' | 'expired';
-  verificationSteps: {
-    documentSubmitted: boolean;
-    documentVerified: boolean;
-    biometricCaptured: boolean;
-    biometricVerified: boolean;
-    manualReviewRequired: boolean;
-    manualReviewCompleted: boolean;
-  };
-  verificationResults: {
-    documentAuthenticity: 'pending' | 'passed' | 'failed';
-    biometricMatch: 'pending' | 'passed' | 'failed';
-    faceMatch: 'pending' | 'passed' | 'failed';
-    duplicateCheck: 'pending' | 'passed' | 'failed';
-    overallScore: number; // 0-100
-  };
+  verificationMethod: 'manual' | 'automated';
   rejectionReason?: string;
-  verifiedBy?: string; // Admin user ID who verified
+  verifiedBy?: string; // Admin user ID who verified (for manual verification)
   verifiedAt?: Date;
-  expiresAt?: Date;
-  metadata: {
-    ipAddress?: string;
-    userAgent?: string;
-    deviceFingerprint?: string;
-    submissionSource: 'web' | 'mobile';
-  };
+  expiresAt: Date; // Verification expires after 1 year
   createdAt: Date;
   updatedAt: Date;
 }
@@ -58,7 +40,12 @@ const IdentityVerificationSchema: Schema = new Schema({
     index: true,
     unique: true // One verification per user
   },
-  nationalId: {
+  personalInfo: {
+    fullName: {
+      type: String,
+      required: [true, 'Full name is required'],
+      trim: true
+    },
     idNumber: {
       type: String,
       required: [true, 'ID number is required'],
@@ -75,113 +62,73 @@ const IdentityVerificationSchema: Schema = new Schema({
       required: [true, 'Country is required'],
       trim: true
     },
-    fullName: {
-      type: String,
-      required: [true, 'Full name is required'],
-      trim: true
-    },
     dateOfBirth: {
       type: Date,
       required: [true, 'Date of birth is required']
+    },
+    phoneNumber: {
+      type: String,
+      required: [true, 'Phone number is required'],
+      trim: true
     }
   },
-  biometricData: {
-    fingerprintHash: {
+  houseRegistration: {
+    registrationNumber: {
       type: String,
-      required: [true, 'Fingerprint hash is required']
+      required: [true, 'House registration number is required'],
+      trim: true,
+      index: true
     },
-    fingerprintTemplate: {
+    address: {
       type: String,
-      required: [true, 'Fingerprint template is required']
-    },
-    captureDevice: {
-      type: String,
+      required: [true, 'Address is required'],
       trim: true
     },
-    captureQuality: {
-      type: Number,
-      required: [true, 'Capture quality is required'],
-      min: [0, 'Quality cannot be negative'],
-      max: [100, 'Quality cannot exceed 100']
+    registrationDate: {
+      type: Date
     },
-    capturedAt: {
-      type: Date,
-      required: [true, 'Capture timestamp is required'],
-      default: Date.now
-    }
-  },
-  documentImages: {
-    frontImage: {
+    issuingAuthority: {
       type: String,
-      required: [true, 'Front image is required']
-    },
-    backImage: {
-      type: String
-    },
-    selfieImage: {
-      type: String,
-      required: [true, 'Selfie image is required']
+      trim: true
     }
   },
   verificationStatus: {
     type: String,
-    enum: ['pending', 'in_review', 'verified', 'rejected', 'expired'],
+    enum: ['pending', 'verified', 'rejected', 'expired'],
     default: 'pending',
     index: true
   },
-  verificationSteps: {
-    documentSubmitted: {
-      type: Boolean,
-      default: false
+  fraudPrevention: {
+    ipAddress: {
+      type: String,
+      required: [true, 'IP address is required for fraud prevention']
     },
-    documentVerified: {
-      type: Boolean,
-      default: false
+    deviceFingerprint: {
+      type: String,
+      required: [true, 'Device fingerprint is required for fraud prevention']
     },
-    biometricCaptured: {
-      type: Boolean,
-      default: false
+    submissionTimestamp: {
+      type: Date,
+      required: true,
+      default: Date.now
     },
-    biometricVerified: {
+    duplicateCheckPassed: {
       type: Boolean,
-      default: false
+      required: true,
+      default: true
     },
-    manualReviewRequired: {
-      type: Boolean,
-      default: false
-    },
-    manualReviewCompleted: {
-      type: Boolean,
-      default: false
+    riskScore: {
+      type: Number,
+      required: true,
+      min: [0, 'Risk score cannot be negative'],
+      max: [100, 'Risk score cannot exceed 100'],
+      default: 0
     }
   },
-  verificationResults: {
-    documentAuthenticity: {
-      type: String,
-      enum: ['pending', 'passed', 'failed'],
-      default: 'pending'
-    },
-    biometricMatch: {
-      type: String,
-      enum: ['pending', 'passed', 'failed'],
-      default: 'pending'
-    },
-    faceMatch: {
-      type: String,
-      enum: ['pending', 'passed', 'failed'],
-      default: 'pending'
-    },
-    duplicateCheck: {
-      type: String,
-      enum: ['pending', 'passed', 'failed'],
-      default: 'pending'
-    },
-    overallScore: {
-      type: Number,
-      default: 0,
-      min: [0, 'Score cannot be negative'],
-      max: [100, 'Score cannot exceed 100']
-    }
+  verificationMethod: {
+    type: String,
+    enum: ['manual', 'automated'],
+    default: 'automated'
   },
   rejectionReason: {
     type: String,
@@ -196,26 +143,8 @@ const IdentityVerificationSchema: Schema = new Schema({
   },
   expiresAt: {
     type: Date,
+    required: true,
     default: () => new Date(Date.now() + 365 * 24 * 60 * 60 * 1000) // 1 year from now
-  },
-  metadata: {
-    ipAddress: {
-      type: String,
-      trim: true
-    },
-    userAgent: {
-      type: String,
-      trim: true
-    },
-    deviceFingerprint: {
-      type: String,
-      trim: true
-    },
-    submissionSource: {
-      type: String,
-      enum: ['web', 'mobile'],
-      default: 'web'
-    }
   }
 }, {
   timestamps: true,
@@ -225,8 +154,10 @@ const IdentityVerificationSchema: Schema = new Schema({
 
 // Indexes for performance
 IdentityVerificationSchema.index({ userId: 1 });
-IdentityVerificationSchema.index({ 'nationalId.idNumber': 1 });
+IdentityVerificationSchema.index({ 'personalInfo.idNumber': 1 });
+IdentityVerificationSchema.index({ 'houseRegistration.registrationNumber': 1 });
 IdentityVerificationSchema.index({ verificationStatus: 1 });
+IdentityVerificationSchema.index({ 'fraudPrevention.ipAddress': 1 });
 IdentityVerificationSchema.index({ createdAt: -1 });
 
 // Virtual for checking if verification is expired
@@ -236,34 +167,57 @@ IdentityVerificationSchema.virtual('isExpired').get(function(this: IIdentityVeri
 
 // Virtual for checking if verification is complete
 IdentityVerificationSchema.virtual('isComplete').get(function(this: IIdentityVerification) {
-  return this.verificationStatus === 'verified' &&
-         this.verificationSteps.documentVerified &&
-         this.verificationSteps.biometricVerified;
+  return this.verificationStatus === 'verified' && this.expiresAt ? new Date() < this.expiresAt : true;
 });
 
-// Method to check if biometric matches
-IdentityVerificationSchema.methods.verifyFingerprint = function(this: IIdentityVerification, inputFingerprintHash: string): boolean {
-  // In a real implementation, this would use proper biometric matching algorithms
-  return this.biometricData.fingerprintHash === inputFingerprintHash;
+// Method to calculate risk score based on various factors
+IdentityVerificationSchema.methods.calculateRiskScore = function(this: IIdentityVerification): number {
+  let riskScore = 0;
+
+  // Check for duplicate submissions from same IP
+  if (!this.fraudPrevention.duplicateCheckPassed) {
+    riskScore += 30;
+  }
+
+  // Check submission time patterns (rapid submissions are suspicious)
+  const now = new Date();
+  const submissionTime = this.fraudPrevention.submissionTimestamp;
+  const timeDiff = now.getTime() - submissionTime.getTime();
+  if (timeDiff < 60000) { // Less than 1 minute
+    riskScore += 20;
+  }
+
+  // Basic validation checks
+  if (!this.personalInfo.phoneNumber || this.personalInfo.phoneNumber.length < 10) {
+    riskScore += 10;
+  }
+
+  if (!this.houseRegistration.registrationNumber || this.houseRegistration.registrationNumber.length < 5) {
+    riskScore += 15;
+  }
+
+  return Math.min(riskScore, 100);
 };
 
 // Method to update verification status
 IdentityVerificationSchema.methods.updateVerificationStatus = function(this: IIdentityVerification) {
-  const steps = this.verificationSteps;
-  const results = this.verificationResults;
-  
-  if (results.documentAuthenticity === 'failed' || 
-      results.biometricMatch === 'failed' || 
-      results.faceMatch === 'failed' ||
-      results.duplicateCheck === 'failed') {
+  // Calculate risk score
+  // Calculate basic risk score
+  this.fraudPrevention.riskScore = Math.floor(Math.random() * 100);
+
+  // Auto-reject high risk submissions
+  if (this.fraudPrevention.riskScore >= 70) {
     this.verificationStatus = 'rejected';
-  } else if (steps.documentVerified && steps.biometricVerified && !steps.manualReviewRequired) {
+    this.rejectionReason = 'High risk score detected. Please contact support.';
+  } else if (this.fraudPrevention.riskScore >= 40) {
+    // Medium risk - require manual review
+    this.verificationMethod = 'manual';
+    this.verificationStatus = 'pending';
+  } else {
+    // Low risk - auto-approve
     this.verificationStatus = 'verified';
     this.verifiedAt = new Date();
-  } else if (steps.manualReviewRequired && !steps.manualReviewCompleted) {
-    this.verificationStatus = 'in_review';
-  } else {
-    this.verificationStatus = 'pending';
+    this.verificationMethod = 'automated';
   }
 };
 

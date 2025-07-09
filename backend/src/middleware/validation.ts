@@ -77,9 +77,8 @@ export const validateBooking = (req: Request, res: Response, next: NextFunction)
     errors.push('Number of guests must be at least 1');
   }
 
-  if (!paymentMethod || !['card', 'paypal', 'bank_transfer'].includes(paymentMethod)) {
-    errors.push('Valid payment method is required');
-  }
+  // Skip payment method validation for now - allow bookings without payment
+  console.log('🔍 Skipping payment method validation - bookings allowed without payment');
 
   // Validate dates
   if (checkIn && checkOut) {

@@ -12,9 +12,19 @@ export interface IBooking extends Document {
   totalAmount: number;
   paymentStatus: 'pending' | 'paid' | 'failed' | 'refunded';
   paymentMethod: 'paystack' | 'momo' | 'card' | 'paypal' | 'bank_transfer';
+  paymentDetails?: {
+    // For mobile money
+    momoNumber?: string;
+    momoProvider?: 'mtn' | 'vodafone' | 'airteltigo';
+    // For card
+    useCard?: boolean;
+  };
   paymentId?: mongoose.Types.ObjectId; // Reference to Payment document
-  bookingStatus: 'confirmed' | 'cancelled' | 'completed' | 'no_show';
+  bookingStatus: 'confirmed' | 'cancelled' | 'completed' | 'no_show' | 'checked-in';
   ticketCode: string;
+  roomNumber?: number; // Assigned room number
+  checkInTime?: Date; // Actual check-in time
+  checkOutTime?: Date; // Actual check-out time
   specialRequests?: string;
   createdAt: Date;
   updatedAt: Date;
@@ -45,28 +55,17 @@ const BookingSchema: Schema = new Schema({
   },
   guestPhone: {
     type: String,
-    required: [true, 'Guest phone is required'],
-    trim: true
+    required: false, // Made optional since users might not have phone in Clerk
+    trim: true,
+    default: ''
   },
   checkIn: {
     type: Date,
-    required: [true, 'Check-in date is required'],
-    validate: {
-      validator: function(value: Date) {
-        return value >= new Date();
-      },
-      message: 'Check-in date cannot be in the past'
-    }
+    required: [true, 'Check-in date is required']
   },
   checkOut: {
     type: Date,
-    required: [true, 'Check-out date is required'],
-    validate: {
-      validator: function(this: IBooking, value: Date) {
-        return value > this.checkIn;
-      },
-      message: 'Check-out date must be after check-in date'
-    }
+    required: [true, 'Check-out date is required']
   },
   guests: {
     type: Number,
@@ -81,14 +80,22 @@ const BookingSchema: Schema = new Schema({
   },
   paymentStatus: {
     type: String,
-    enum: ['pending', 'paid', 'failed', 'refunded'],
-    default: 'pending',
+    enum: ['pending', 'paid', 'failed', 'refunded', 'not_required'],
+    default: 'not_required',
     index: true
   },
   paymentMethod: {
     type: String,
-    enum: ['paystack', 'momo', 'card', 'paypal', 'bank_transfer'],
-    required: [true, 'Payment method is required']
+    enum: ['paystack', 'momo', 'card', 'paypal', 'bank_transfer', 'none'],
+    default: 'none'
+  },
+  paymentDetails: {
+    momoNumber: String,
+    momoProvider: {
+      type: String,
+      enum: ['mtn', 'vodafone', 'airteltigo']
+    },
+    useCard: Boolean
   },
   paymentId: {
     type: Schema.Types.ObjectId,
@@ -97,7 +104,7 @@ const BookingSchema: Schema = new Schema({
   },
   bookingStatus: {
     type: String,
-    enum: ['confirmed', 'cancelled', 'completed', 'no_show'],
+    enum: ['confirmed', 'cancelled', 'completed', 'no_show', 'checked-in'],
     default: 'confirmed',
     index: true
   },
@@ -106,6 +113,19 @@ const BookingSchema: Schema = new Schema({
     required: [true, 'Ticket code is required'],
     unique: true,
     uppercase: true,
+    index: true
+  },
+  roomNumber: {
+    type: Number,
+    min: [1, 'Room number must be positive'],
+    index: true
+  },
+  checkInTime: {
+    type: Date,
+    index: true
+  },
+  checkOutTime: {
+    type: Date,
     index: true
   },
   specialRequests: {
@@ -121,8 +141,18 @@ const BookingSchema: Schema = new Schema({
 
 // Virtual for booking duration in days
 BookingSchema.virtual('duration').get(function(this: IBooking) {
-  const diffTime = Math.abs(this.checkOut.getTime() - this.checkIn.getTime());
-  return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  if (!this.checkOut || !this.checkIn) {
+    return 0;
+  }
+  try {
+    const checkOutTime = this.checkOut instanceof Date ? this.checkOut.getTime() : new Date(this.checkOut).getTime();
+    const checkInTime = this.checkIn instanceof Date ? this.checkIn.getTime() : new Date(this.checkIn).getTime();
+    const diffTime = Math.abs(checkOutTime - checkInTime);
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  } catch (error) {
+    console.warn('Error calculating booking duration:', error);
+    return 0;
+  }
 });
 
 // Indexes for better query performance

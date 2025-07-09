@@ -1,22 +1,22 @@
 import React, { useState } from 'react';
 import { useAuth } from '@clerk/clerk-react';
-import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import { 
-  Shield, 
-  AlertCircle, 
-  CheckCircle, 
-  Clock, 
-  Fingerprint, 
+import {
+  Shield,
+  AlertCircle,
+  CheckCircle,
+  Clock,
+  Fingerprint,
   CreditCard,
   Lock,
   ArrowRight
 } from 'lucide-react';
-import identityVerificationService from '@/services/identityVerificationService';
+import { useVerificationStatus } from '@/hooks/useVerificationStatus';
 import IdentityVerificationFlow from './IdentityVerificationFlow';
+import VerificationAndPaymentFlow from './VerificationAndPaymentFlow';
 
 interface VerificationGateProps {
   children: React.ReactNode;
@@ -24,37 +24,26 @@ interface VerificationGateProps {
   showPaymentRequirement?: boolean;
 }
 
-const VerificationGate: React.FC<VerificationGateProps> = ({ 
-  children, 
+const VerificationGate: React.FC<VerificationGateProps> = ({
+  children,
   requiredLevel = 'full',
-  showPaymentRequirement = true 
+  showPaymentRequirement = true
 }) => {
-  const { getToken, user } = useAuth();
+  const { user, isSignedIn } = useAuth();
   const [showVerificationFlow, setShowVerificationFlow] = useState(false);
+  const [localVerificationComplete, setLocalVerificationComplete] = useState(false);
 
-  // Get verification status
-  const { data: verificationStatus, isLoading, refetch } = useQuery({
-    queryKey: ['verification-status'],
-    queryFn: async () => {
-      const token = await getToken();
-      return identityVerificationService.getVerificationStatus(token!);
-    },
-    staleTime: 30000 // 30 seconds
-  });
-
-  // Get user payment account status (you'll need to implement this)
-  const { data: paymentStatus } = useQuery({
-    queryKey: ['payment-account-status'],
-    queryFn: async () => {
-      const token = await getToken();
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'}/user-payments/account`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (!response.ok) return { hasAccount: false, isVerified: false };
-      return response.json();
-    },
-    staleTime: 30000
-  });
+  // Use the new verification status hook
+  const {
+    isIdentityVerified,
+    hasPaymentAccount,
+    isPaymentVerified,
+    canListApartments,
+    isLoading,
+    refetch,
+    invalidateVerificationStatus,
+    debug
+  } = useVerificationStatus();
 
   if (isLoading) {
     return (
@@ -67,23 +56,57 @@ const VerificationGate: React.FC<VerificationGateProps> = ({
     );
   }
 
-  // Check if user meets requirements
-  const isIdentityVerified = verificationStatus?.isVerified || false;
-  const hasPaymentAccount = paymentStatus?.hasAccount || false;
-  const isPaymentVerified = paymentStatus?.isVerified || false;
-  
-  const canListApartments = isIdentityVerified && (!showPaymentRequirement || (hasPaymentAccount && isPaymentVerified));
+  // Check if user meets requirements - prioritize actual database status
+  // Only use local state as a temporary optimistic update, but still require database confirmation
+  const finalIsIdentityVerified = isIdentityVerified;
+  const finalHasPaymentAccount = hasPaymentAccount;
+  const finalIsPaymentVerified = isPaymentVerified;
 
-  if (canListApartments) {
+  const finalCanListApartments = finalIsIdentityVerified && (!showPaymentRequirement || (finalHasPaymentAccount && finalIsPaymentVerified));
+
+  // Enhanced debugging to understand the issue
+  console.log('🔍 VerificationGate Debug - Raw Values:', {
+    isIdentityVerified,
+    hasPaymentAccount,
+    isPaymentVerified,
+    canListApartments,
+    isLoading,
+    showPaymentRequirement
+  });
+
+  console.log('🔍 VerificationGate Debug - Final Values:', {
+    finalIsIdentityVerified,
+    finalHasPaymentAccount,
+    finalIsPaymentVerified,
+    finalCanListApartments
+  });
+
+  console.log('🔍 VerificationGate Debug - Raw API Data:', {
+    verificationQuery: debug?.verificationQuery?.data,
+    paymentQuery: debug?.paymentQuery?.data,
+    verificationError: debug?.verificationQuery?.error,
+    paymentError: debug?.paymentQuery?.error
+  });
+
+  if (finalCanListApartments) {
     return <>{children}</>;
   }
 
   if (showVerificationFlow) {
     return (
-      <IdentityVerificationFlow
-        onVerificationComplete={() => {
+      <VerificationAndPaymentFlow
+        onComplete={() => {
+          console.log('🎉 Verification and payment setup completed! Refreshing verification status...');
           setShowVerificationFlow(false);
+
+          // Invalidate and refetch verification status to get fresh data from database
+          invalidateVerificationStatus();
+
+          // Also refetch immediately to get updated status
           refetch();
+
+          // Note: We no longer set localVerificationComplete to avoid state mismatch
+          // The user will see the updated status once the database is updated
         }}
         onClose={() => setShowVerificationFlow(false)}
       />
@@ -169,9 +192,9 @@ const VerificationGate: React.FC<VerificationGateProps> = ({
   );
 
   const getIdentityStatus = () => {
-    if (!verificationStatus?.hasVerification) return 'required';
-    if (verificationStatus.verificationStatus === 'verified') return 'completed';
-    return 'pending';
+    if (isIdentityVerified && hasPaymentAccount && isPaymentVerified) return 'completed';
+    if (isIdentityVerified || hasPaymentAccount) return 'pending';
+    return 'required';
   };
 
   const getPaymentStatus = () => {
@@ -199,9 +222,8 @@ const VerificationGate: React.FC<VerificationGateProps> = ({
       <Alert>
         <Shield className="h-4 w-4" />
         <AlertDescription>
-          <strong>Enhanced Security:</strong> To prevent fraud and protect all users, we require 
-          identity verification with biometric authentication and payment account setup before 
-          listing apartments.
+          <strong>Enhanced Security:</strong> To prevent fraud and protect all users, we require
+          identity verification and payment account setup before listing apartments.
         </AlertDescription>
       </Alert>
 
@@ -211,24 +233,12 @@ const VerificationGate: React.FC<VerificationGateProps> = ({
         
         <RequirementCard
           icon={Fingerprint}
-          title="Identity Verification"
-          description="Verify your identity with national ID and fingerprint biometric authentication"
+          title="Identity Verification & Payment Setup"
+          description="Complete identity verification and set up your payment account in one simple flow"
           status={getIdentityStatus()}
           action={() => setShowVerificationFlow(true)}
         />
-        
-        {showPaymentRequirement && (
-          <RequirementCard
-            icon={CreditCard}
-            title="Payment Account Setup"
-            description="Set up your payment account to receive direct payments from renters"
-            status={getPaymentStatus()}
-            action={() => {
-              // Navigate to payment setup - you'll need to implement this
-              window.location.href = '/owner?tab=payment-setup';
-            }}
-          />
-        )}
+
       </div>
 
       {/* Status Summary */}
@@ -240,17 +250,17 @@ const VerificationGate: React.FC<VerificationGateProps> = ({
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-sm">Identity Verification</span>
-              <Badge variant={isIdentityVerified ? 'default' : 'secondary'}>
-                {verificationStatus?.verificationStatus || 'Not Started'}
+              <Badge variant={finalIsIdentityVerified ? 'default' : 'secondary'}>
+                {finalIsIdentityVerified ? 'Verified' : 'Not Started'}
               </Badge>
             </div>
-            
+
             {showPaymentRequirement && (
               <div className="flex items-center justify-between">
                 <span className="text-sm">Payment Account</span>
-                <Badge variant={hasPaymentAccount && isPaymentVerified ? 'default' : 'secondary'}>
-                  {hasPaymentAccount 
-                    ? (isPaymentVerified ? 'Verified' : 'Pending') 
+                <Badge variant={finalHasPaymentAccount && finalIsPaymentVerified ? 'default' : 'secondary'}>
+                  {finalHasPaymentAccount
+                    ? (finalIsPaymentVerified ? 'Verified' : 'Pending')
                     : 'Not Set Up'
                   }
                 </Badge>
