@@ -1,6 +1,6 @@
-# 🏠 Apartment Rental Platform
+# 🏠 StayGlobal - Premium Apartment Rentals
 
-A modern apartment rental platform built with React, TypeScript, and Vite.
+StayGlobal is a modern apartment rental platform built with React, TypeScript, and Vite. Find and book premium apartments worldwide with secure booking, verified properties, and seamless rental experience.
 
 ## 🚀 Quick Deploy to Vercel
 
