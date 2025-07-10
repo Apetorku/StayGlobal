@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import Booking, { IBooking } from '../models/Booking';
 import Apartment from '../models/Apartment';
+import Commission from '../models/Commission';
 import { syncUserWithClerk } from '../utils/userUtils';
 import biometricService from '../services/biometricService';
 import ChatService from '../services/chatService';
@@ -254,6 +255,24 @@ export const createBooking = async (req: Request, res: Response): Promise<void> 
     // Populate apartment details
     await booking.populate('apartmentId', 'title location images');
 
+    // Send notification to admin about new booking
+    try {
+      await NotificationService.createNewBookingNotification({
+        bookingId: (booking._id as any).toString(),
+        apartmentId: (apartment._id as any).toString(),
+        apartmentTitle: apartment.title,
+        guestName: booking.guestName,
+        ownerId: apartment.ownerId,
+        ownerName: apartment.ownerName,
+        roomNumber: booking.roomNumber,
+        checkIn: booking.checkIn,
+        checkOut: booking.checkOut
+      });
+    } catch (notificationError) {
+      console.error('⚠️ Failed to send admin notification for new booking:', notificationError);
+      // Don't fail the booking creation if notification fails
+    }
+
     // Create chat for the booking
     try {
       await ChatService.getOrCreateChat((booking._id as string).toString());
@@ -261,6 +280,32 @@ export const createBooking = async (req: Request, res: Response): Promise<void> 
     } catch (error) {
       console.error('⚠️ Failed to create chat for booking:', error);
       // Don't fail the booking creation if chat creation fails
+    }
+
+    // Create commission record (5% of total amount)
+    try {
+      const commissionRate = 0.05; // 5%
+      const commissionAmount = totalAmount * commissionRate;
+
+      const commission = new Commission({
+        bookingId: booking._id,
+        apartmentId: booking.apartmentId,
+        ownerId: apartment.ownerId,
+        guestId: booking.guestId,
+        roomPrice: totalAmount,
+        commissionRate,
+        commissionAmount,
+        bookingDate: booking.createdAt,
+        checkInDate: booking.checkIn,
+        checkOutDate: booking.checkOut,
+        status: 'pending'
+      });
+
+      await commission.save();
+      console.log(`💰 Commission created: $${commissionAmount.toFixed(2)} (5% of $${totalAmount})`);
+    } catch (error) {
+      console.error('⚠️ Failed to create commission record:', error);
+      // Don't fail the booking creation if commission creation fails
     }
 
     res.status(201).json({

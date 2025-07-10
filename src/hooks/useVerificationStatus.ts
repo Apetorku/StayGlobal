@@ -81,23 +81,19 @@ export const useVerificationStatus = () => {
   const verificationQuery = useQuery({
     queryKey: ['verification-status', user?.id],
     queryFn: async (): Promise<VerificationStatus> => {
-      console.log('🔍 Fetching verification status from API (ignoring cache)...');
       const token = await getToken();
       if (!token) {
         throw new Error('No authentication token available');
       }
 
       try {
-        console.log('🌐 Making verification API call to:', `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'}/identity-verification/status`);
         const result = await identityVerificationService.getVerificationStatus(token);
-        console.log('✅ Verification status received from API:', result);
 
         // Only store the result if user is actually verified in database
         if (result.isVerified && result.verificationLevel === 'fully_verified' && userId) {
           setStoredVerificationStatus(userId, result);
         } else {
           // Clear any stored status if user is not verified
-          console.log('🧹 Clearing stored verification status (user not verified)');
           localStorage.removeItem(`verification_status_${userId}`);
         }
 
@@ -129,7 +125,6 @@ export const useVerificationStatus = () => {
   const paymentQuery = useQuery({
     queryKey: ['payment-account-status', userId],
     queryFn: async (): Promise<PaymentStatus> => {
-      console.log('🔍 Fetching payment status from API (ignoring cache)...');
       const token = await getToken();
       if (!token) {
         throw new Error('No authentication token available');
@@ -137,30 +132,22 @@ export const useVerificationStatus = () => {
 
       try {
         const apiUrl = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'}/user-payments/account`;
-        console.log('🌐 Making payment API call to:', apiUrl);
 
         const response = await fetch(apiUrl, {
           headers: { Authorization: `Bearer ${token}` }
         });
 
-        console.log('📡 Payment API response status:', response.status);
-
         if (!response.ok) {
-          console.log('❌ Payment API returned error status:', response.status);
-          const errorText = await response.text();
-          console.log('❌ Payment API error response:', errorText);
           return { hasAccount: false, isVerified: false };
         }
 
         const result = await response.json();
-        console.log('✅ Payment status received from API:', result);
 
         // Only store the result if account is actually verified
         if (result.paymentAccount?.isVerified && userId) {
           setStoredPaymentStatus(userId, result);
         } else {
           // Clear any stored status if account is not verified
-          console.log('🧹 Clearing stored payment status (account not verified)');
           localStorage.removeItem(`payment_status_${userId}`);
         }
 
@@ -233,26 +220,10 @@ export const useVerificationStatus = () => {
   const verificationStatus = verificationQuery.data;
   const paymentStatus = paymentQuery.data;
 
-  console.log('🔍 useVerificationStatus Debug:', {
-    verificationQueryData: verificationStatus,
-    paymentQueryData: paymentStatus,
-    verificationQueryError: verificationQuery.error,
-    paymentQueryError: paymentQuery.error,
-    verificationQueryStatus: verificationQuery.status,
-    paymentQueryStatus: paymentQuery.status
-  });
-
   const isIdentityVerified = verificationStatus?.isVerified || false;
   const hasPaymentAccount = verificationStatus?.hasPaymentAccount || !!paymentStatus?.paymentAccount || false;
   const isPaymentVerified = verificationStatus?.isPaymentVerified || paymentStatus?.paymentAccount?.isVerified || false;
   const canListApartments = isIdentityVerified && hasPaymentAccount && isPaymentVerified;
-
-  console.log('🔍 Computed verification values:', {
-    isIdentityVerified,
-    hasPaymentAccount,
-    isPaymentVerified,
-    canListApartments
-  });
 
   return {
     // Raw data
@@ -276,15 +247,7 @@ export const useVerificationStatus = () => {
       paymentQuery.refetch();
     },
     invalidateVerificationStatus,
-    markVerificationComplete,
-    
-    // For debugging
-    debug: {
-      verificationQuery: verificationQuery.data,
-      paymentQuery: paymentQuery.data,
-      isSignedIn,
-      userId: user?.id,
-    }
+    markVerificationComplete
   };
 };
 

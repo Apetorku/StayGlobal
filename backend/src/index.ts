@@ -26,15 +26,7 @@ app.use(morgan('combined'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Add request logging middleware
-app.use((req, res, next) => {
-  console.log(`📥 ${req.method} ${req.path} - ${new Date().toISOString()}`);
-  if (req.method === 'POST' && req.path.includes('/bookings')) {
-    console.log('📋 Booking request body:', req.body);
-    console.log('🔐 Authorization header:', req.headers.authorization ? 'Present' : 'Missing');
-  }
-  next();
-});
+
 
 // Clerk authentication middleware
 app.use(clerkMiddleware());
@@ -57,6 +49,8 @@ import userPaymentRoutes from './routes/userPaymentRoutes';
 import identityVerificationRoutes from './routes/identityVerificationRoutes';
 import notificationRoutes from './routes/notifications';
 import chatRoutes from './routes/chats';
+import adminRoutes from './routes/adminRoutes';
+import adminChatRoutes from './routes/adminChatRoutes';
 import AutoCheckoutService from './services/autoCheckoutService';
 
 app.use('/api/apartments', (req, res, next) => {
@@ -79,6 +73,8 @@ app.use('/api/user-payments', userPaymentRoutes);
 app.use('/api/identity-verification', identityVerificationRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/chats', chatRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/admin-chat', adminChatRoutes);
 
 // Error handling middleware
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {

@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import IdentityVerification from '../models/IdentityVerification';
 import User from '../models/User';
+import NotificationService from '../services/notificationService';
 
 // Simple verification submission - new simplified flow
 export const submitSimpleVerification = async (req: Request, res: Response): Promise<void> => {
@@ -271,6 +272,19 @@ export const submitIdentityVerification = async (req: Request, res: Response): P
       }
 
       console.log('✅ User verification status updated successfully');
+
+      // Send notification to admin about verification submission
+      try {
+        await NotificationService.createVerificationSubmittedNotification({
+          userId: userUpdateResult.clerkId,
+          userName: userUpdateResult.fullName || `${userUpdateResult.firstName} ${userUpdateResult.lastName}`,
+          userEmail: userUpdateResult.email,
+          verificationType: 'identity_verification'
+        });
+      } catch (notificationError) {
+        console.error('⚠️ Failed to send admin notification for verification submission:', notificationError);
+        // Don't fail the verification if notification fails
+      }
 
       res.json({
         message: 'Identity verification completed successfully',

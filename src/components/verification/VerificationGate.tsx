@@ -41,8 +41,7 @@ const VerificationGate: React.FC<VerificationGateProps> = ({
     canListApartments,
     isLoading,
     refetch,
-    invalidateVerificationStatus,
-    debug
+    invalidateVerificationStatus
   } = useVerificationStatus();
 
   if (isLoading) {
@@ -64,29 +63,7 @@ const VerificationGate: React.FC<VerificationGateProps> = ({
 
   const finalCanListApartments = finalIsIdentityVerified && (!showPaymentRequirement || (finalHasPaymentAccount && finalIsPaymentVerified));
 
-  // Enhanced debugging to understand the issue
-  console.log('🔍 VerificationGate Debug - Raw Values:', {
-    isIdentityVerified,
-    hasPaymentAccount,
-    isPaymentVerified,
-    canListApartments,
-    isLoading,
-    showPaymentRequirement
-  });
 
-  console.log('🔍 VerificationGate Debug - Final Values:', {
-    finalIsIdentityVerified,
-    finalHasPaymentAccount,
-    finalIsPaymentVerified,
-    finalCanListApartments
-  });
-
-  console.log('🔍 VerificationGate Debug - Raw API Data:', {
-    verificationQuery: debug?.verificationQuery?.data,
-    paymentQuery: debug?.paymentQuery?.data,
-    verificationError: debug?.verificationQuery?.error,
-    paymentError: debug?.paymentQuery?.error
-  });
 
   if (finalCanListApartments) {
     return <>{children}</>;

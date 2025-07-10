@@ -1,14 +1,16 @@
 import mongoose, { Document, Schema } from 'mongoose';
 
 export interface INotification extends Document {
-  userId: string; // Clerk user ID (house owner)
-  type: 'auto_checkout' | 'booking_reminder' | 'payment_received' | 'system_alert';
+  userId: string; // Clerk user ID (house owner or admin)
+  type: 'auto_checkout' | 'booking_reminder' | 'payment_received' | 'system_alert' | 'new_message' | 'checkout_reminder' | 'new_apartment' | 'new_booking' | 'verification_submitted' | 'admin_message' | 'payment_issue';
   title: string;
   message: string;
   bookingId?: mongoose.Types.ObjectId;
   apartmentId?: mongoose.Types.ObjectId;
   guestName?: string;
   roomNumber?: number;
+  ownerId?: string; // For admin notifications about owners
+  ownerName?: string; // For admin notifications about owners
   isRead: boolean;
   priority: 'low' | 'medium' | 'high';
   createdAt: Date;
@@ -23,7 +25,7 @@ const notificationSchema = new Schema<INotification>({
   },
   type: {
     type: String,
-    enum: ['auto_checkout', 'booking_reminder', 'payment_received', 'system_alert', 'new_message', 'checkout_reminder'],
+    enum: ['auto_checkout', 'booking_reminder', 'payment_received', 'system_alert', 'new_message', 'checkout_reminder', 'new_apartment', 'new_booking', 'verification_submitted', 'admin_message', 'payment_issue'],
     required: [true, 'Notification type is required'],
     index: true
   },
@@ -57,6 +59,16 @@ const notificationSchema = new Schema<INotification>({
   roomNumber: {
     type: Number,
     min: [1, 'Room number must be positive']
+  },
+  ownerId: {
+    type: String,
+    trim: true,
+    maxlength: [100, 'Owner ID cannot exceed 100 characters']
+  },
+  ownerName: {
+    type: String,
+    trim: true,
+    maxlength: [100, 'Owner name cannot exceed 100 characters']
   },
   isRead: {
     type: Boolean,

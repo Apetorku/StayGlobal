@@ -25,13 +25,9 @@ const HouseOwner = () => {
   const { data: apartmentData, isLoading: apartmentsLoading, error: apartmentError } = useQuery({
     queryKey: ['owner-apartments', userId],
     queryFn: async () => {
-      console.log('🏠 Fetching apartments for user:', userId);
       const token = await getToken();
-      console.log('🔑 Token for apartments:', token ? 'Available' : 'Missing');
       if (!token) throw new Error('Authentication required');
-      const result = await apartmentService.getOwnerApartments(token);
-      console.log('📊 Apartments result:', result);
-      return result;
+      return await apartmentService.getOwnerApartments(token);
     },
     enabled: !!isSignedIn && !!userId,
     staleTime: 5 * 60 * 1000,
@@ -41,13 +37,9 @@ const HouseOwner = () => {
   const { data: bookingData, isLoading: bookingsLoading, error: bookingError } = useQuery({
     queryKey: ['owner-bookings', userId],
     queryFn: async () => {
-      console.log('📅 Fetching bookings for user:', userId);
       const token = await getToken();
-      console.log('🔑 Token for bookings:', token ? 'Available' : 'Missing');
       if (!token) throw new Error('Authentication required');
-      const result = await bookingService.getOwnerBookings(token);
-      console.log('📊 Bookings result:', result);
-      return result;
+      return await bookingService.getOwnerBookings(token);
     },
     enabled: !!isSignedIn && !!userId,
     staleTime: 5 * 60 * 1000,
@@ -70,18 +62,6 @@ const HouseOwner = () => {
   };
 
   const isLoading = apartmentsLoading || bookingsLoading;
-
-  // Debug logging
-  console.log('🔍 Debug Info:', {
-    isSignedIn,
-    userId,
-    apartmentData,
-    bookingData,
-    apartmentError,
-    bookingError,
-    apartmentsLoading,
-    bookingsLoading
-  });
 
   const apartments = apartmentData?.apartments || [];
   const bookings = bookingData?.bookings || [];

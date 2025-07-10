@@ -7,12 +7,14 @@ import { useNavigate } from "react-router-dom";
 import { useAuth, SignInButton, SignUpButton } from "@clerk/clerk-react";
 import { useQuery } from "@tanstack/react-query";
 import { apartmentService } from "@/services/apartmentService";
+import { useIsAdmin } from "@/services/authService";
 import { Home, Shield, MessageSquare, Clock, Star, MapPin, Users } from "lucide-react";
 import ApartmentCard from "@/components/ApartmentCard";
 
 const Landing = () => {
   const navigate = useNavigate();
   const { isSignedIn } = useAuth();
+  const isAdmin = useIsAdmin();
 
   const handleProtectedNavigation = (path: string) => {
     if (isSignedIn) {
@@ -217,15 +219,17 @@ const Landing = () => {
                   <Users className="mr-2 h-5 w-5" />
                   Find Apartments
                 </Button>
-                <Button
-                  size="lg"
-                  variant="secondary"
-                  className="w-full sm:w-auto px-8 py-4 text-lg"
-                  onClick={() => navigate("/admin")}
-                >
-                  <Shield className="mr-2 h-5 w-5" />
-                  Admin Dashboard
-                </Button>
+                {isAdmin && (
+                  <Button
+                    size="lg"
+                    variant="secondary"
+                    className="w-full sm:w-auto px-8 py-4 text-lg"
+                    onClick={() => navigate("/admin")}
+                  >
+                    <Shield className="mr-2 h-5 w-5" />
+                    Admin Dashboard
+                  </Button>
+                )}
               </>
             ) : (
               <>
@@ -252,18 +256,6 @@ const Landing = () => {
                     </Button>
                   </div>
                 </SignUpButton>
-                <SignInButton mode="modal" afterSignInUrl="/admin">
-                  <div>
-                    <Button
-                      size="lg"
-                      variant="secondary"
-                      className="w-full sm:w-auto px-8 py-4 text-lg"
-                    >
-                      <Shield className="mr-2 h-5 w-5" />
-                      Admin Dashboard
-                    </Button>
-                  </div>
-                </SignInButton>
               </>
             )}
           </div>

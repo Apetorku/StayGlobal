@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import Apartment, { IApartment } from '../models/Apartment';
 import { syncUserWithClerk } from '../utils/userUtils';
+import NotificationService from '../services/notificationService';
 
 // Get all apartments with optional filtering
 export const getApartments = async (req: Request, res: Response) => {
@@ -218,6 +219,20 @@ export const createApartment = async (req: Request, res: Response): Promise<void
       ownerName: apartment.ownerName,
       createdAt: apartment.createdAt
     });
+
+    // Send notification to admin about new apartment listing
+    try {
+      await NotificationService.createNewApartmentNotification({
+        apartmentId: (apartment._id as any).toString(),
+        title: apartment.title,
+        ownerId: apartment.ownerId,
+        ownerName: apartment.ownerName,
+        location: `${apartment.location.town}, ${apartment.location.region}, ${apartment.location.country}`
+      });
+    } catch (notificationError) {
+      console.error('⚠️ Failed to send admin notification for new apartment:', notificationError);
+      // Don't fail the apartment creation if notification fails
+    }
 
     res.status(201).json({
       message: 'Apartment created successfully',

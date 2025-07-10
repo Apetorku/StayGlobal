@@ -32,6 +32,7 @@ export interface IApartment extends Document {
     momoProvider?: 'mtn' | 'vodafone' | 'airteltigo';
   };
   isActive: boolean;
+  status: 'active' | 'inactive' | 'suspended';
   createdAt: Date;
   updatedAt: Date;
 }
@@ -162,6 +163,11 @@ const ApartmentSchema: Schema = new Schema({
   isActive: {
     type: Boolean,
     default: true
+  },
+  status: {
+    type: String,
+    enum: ['active', 'inactive', 'suspended'],
+    default: 'active'
   }
 }, {
   timestamps: true,
@@ -175,5 +181,7 @@ ApartmentSchema.index({ price: 1 });
 ApartmentSchema.index({ rating: -1 });
 ApartmentSchema.index({ availableRooms: 1 });
 ApartmentSchema.index({ ownerId: 1 });
+ApartmentSchema.index({ status: 1 });
+ApartmentSchema.index({ isActive: 1 });
 
 export default mongoose.model<IApartment>('Apartment', ApartmentSchema);

@@ -4,13 +4,15 @@ const API_BASE_URL = import.meta.env.VITE_API_URL ||
 export interface Notification {
   _id: string;
   userId: string;
-  type: 'auto_checkout' | 'booking_reminder' | 'payment_received' | 'system_alert' | 'new_message' | 'checkout_reminder';
+  type: 'auto_checkout' | 'booking_reminder' | 'payment_received' | 'system_alert' | 'new_message' | 'checkout_reminder' | 'new_apartment' | 'new_booking' | 'verification_submitted' | 'admin_message' | 'payment_issue';
   title: string;
   message: string;
   bookingId?: string;
   apartmentId?: string;
   guestName?: string;
   roomNumber?: number;
+  ownerId?: string;
+  ownerName?: string;
   isRead: boolean;
   priority: 'low' | 'medium' | 'high';
   createdAt: string;

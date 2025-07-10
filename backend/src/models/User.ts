@@ -6,6 +6,7 @@ export interface IUser extends Document {
   firstName?: string;
   lastName?: string;
   role: 'guest' | 'owner' | 'admin';
+  status: 'active' | 'suspended';
   phone?: string;
   avatar?: string;
   preferences: {
@@ -74,6 +75,12 @@ const UserSchema: Schema = new Schema({
     type: String,
     enum: ['guest', 'owner', 'admin'],
     default: 'guest',
+    index: true
+  },
+  status: {
+    type: String,
+    enum: ['active', 'suspended'],
+    default: 'active',
     index: true
   },
   phone: {

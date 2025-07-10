@@ -1,6 +1,7 @@
 import Notification, { INotification } from '../models/Notification';
 import Apartment from '../models/Apartment';
 import { IBooking } from '../models/Booking';
+import User from '../models/User';
 
 export class NotificationService {
   // Create a notification for auto check-out
@@ -36,13 +37,15 @@ export class NotificationService {
   // Create a general notification
   static async createNotification(data: {
     userId: string;
-    type: 'auto_checkout' | 'booking_reminder' | 'payment_received' | 'system_alert' | 'new_message' | 'checkout_reminder';
+    type: 'auto_checkout' | 'booking_reminder' | 'payment_received' | 'system_alert' | 'new_message' | 'checkout_reminder' | 'new_apartment' | 'new_booking' | 'verification_submitted' | 'admin_message' | 'payment_issue';
     title: string;
     message: string;
     bookingId?: string;
     apartmentId?: string;
     guestName?: string;
     roomNumber?: number;
+    ownerId?: string;
+    ownerName?: string;
     priority?: 'low' | 'medium' | 'high';
   }): Promise<INotification> {
     try {
@@ -175,6 +178,202 @@ export class NotificationService {
     } catch (error) {
       console.error('❌ Error cleaning up notifications:', error);
       return 0;
+    }
+  }
+
+  // ===== ADMIN NOTIFICATION METHODS =====
+
+  // Get admin user ID
+  static async getAdminUserId(): Promise<string | null> {
+    try {
+      const adminUser = await User.findOne({
+        email: 'bamenorhu8@gmail.com',
+        role: 'admin'
+      });
+      return adminUser?.clerkId || null;
+    } catch (error) {
+      console.error('❌ Error getting admin user ID:', error);
+      return null;
+    }
+  }
+
+  // Create notification for new apartment listing
+  static async createNewApartmentNotification(apartmentData: {
+    apartmentId: string;
+    title: string;
+    ownerId: string;
+    ownerName: string;
+    location: string;
+  }): Promise<INotification | null> {
+    try {
+      const adminUserId = await this.getAdminUserId();
+      if (!adminUserId) {
+        console.log('⚠️ Admin user not found, skipping apartment notification');
+        return null;
+      }
+
+      const notification = await this.createNotification({
+        userId: adminUserId,
+        type: 'new_apartment',
+        title: '🏠 New Apartment Listed',
+        message: `${apartmentData.ownerName} has listed a new apartment: "${apartmentData.title}" in ${apartmentData.location}`,
+        apartmentId: apartmentData.apartmentId,
+        ownerId: apartmentData.ownerId,
+        ownerName: apartmentData.ownerName,
+        priority: 'medium'
+      });
+
+      console.log(`✅ New apartment notification sent to admin for apartment: ${apartmentData.title}`);
+      return notification;
+    } catch (error) {
+      console.error('❌ Error creating new apartment notification:', error);
+      return null;
+    }
+  }
+
+  // Create notification for new booking
+  static async createNewBookingNotification(bookingData: {
+    bookingId: string;
+    apartmentId: string;
+    apartmentTitle: string;
+    guestName: string;
+    ownerId: string;
+    ownerName: string;
+    roomNumber?: number;
+    checkIn: Date;
+    checkOut: Date;
+  }): Promise<INotification | null> {
+    try {
+      const adminUserId = await this.getAdminUserId();
+      if (!adminUserId) {
+        console.log('⚠️ Admin user not found, skipping booking notification');
+        return null;
+      }
+
+      const notification = await this.createNotification({
+        userId: adminUserId,
+        type: 'new_booking',
+        title: '📅 New Booking Created',
+        message: `${bookingData.guestName} booked "${bookingData.apartmentTitle}"${bookingData.roomNumber ? ` - Room ${bookingData.roomNumber}` : ''} from ${bookingData.checkIn.toLocaleDateString()} to ${bookingData.checkOut.toLocaleDateString()}`,
+        bookingId: bookingData.bookingId,
+        apartmentId: bookingData.apartmentId,
+        guestName: bookingData.guestName,
+        roomNumber: bookingData.roomNumber,
+        ownerId: bookingData.ownerId,
+        ownerName: bookingData.ownerName,
+        priority: 'medium'
+      });
+
+      console.log(`✅ New booking notification sent to admin for guest: ${bookingData.guestName}`);
+      return notification;
+    } catch (error) {
+      console.error('❌ Error creating new booking notification:', error);
+      return null;
+    }
+  }
+
+  // Create notification for identity verification submission
+  static async createVerificationSubmittedNotification(verificationData: {
+    userId: string;
+    userName: string;
+    userEmail: string;
+    verificationType: string;
+  }): Promise<INotification | null> {
+    try {
+      const adminUserId = await this.getAdminUserId();
+      if (!adminUserId) {
+        console.log('⚠️ Admin user not found, skipping verification notification');
+        return null;
+      }
+
+      const notification = await this.createNotification({
+        userId: adminUserId,
+        type: 'verification_submitted',
+        title: '🔍 Identity Verification Submitted',
+        message: `${verificationData.userName} (${verificationData.userEmail}) has submitted identity verification documents for review`,
+        ownerId: verificationData.userId,
+        ownerName: verificationData.userName,
+        priority: 'high'
+      });
+
+      console.log(`✅ Verification submitted notification sent to admin for user: ${verificationData.userName}`);
+      return notification;
+    } catch (error) {
+      console.error('❌ Error creating verification submitted notification:', error);
+      return null;
+    }
+  }
+
+  // Create notification for admin chat message from owner
+  static async createAdminChatNotification(messageData: {
+    ownerId: string;
+    ownerName: string;
+    message: string;
+    chatId: string;
+  }): Promise<INotification | null> {
+    try {
+      const adminUserId = await this.getAdminUserId();
+      if (!adminUserId) {
+        console.log('⚠️ Admin user not found, skipping admin chat notification');
+        return null;
+      }
+
+      const messagePreview = messageData.message.length > 50 ?
+        messageData.message.substring(0, 50) + '...' : messageData.message;
+
+      const notification = await this.createNotification({
+        userId: adminUserId,
+        type: 'admin_message',
+        title: `💬 Message from ${messageData.ownerName}`,
+        message: `"${messagePreview}"`,
+        ownerId: messageData.ownerId,
+        ownerName: messageData.ownerName,
+        priority: 'medium'
+      });
+
+      console.log(`✅ Admin chat notification sent to admin from owner: ${messageData.ownerName}`);
+      return notification;
+    } catch (error) {
+      console.error('❌ Error creating admin chat notification:', error);
+      return null;
+    }
+  }
+
+  // Create notification for payment issues
+  static async createPaymentIssueNotification(paymentData: {
+    bookingId?: string;
+    apartmentId?: string;
+    guestName?: string;
+    ownerId?: string;
+    ownerName?: string;
+    issueType: string;
+    description: string;
+  }): Promise<INotification | null> {
+    try {
+      const adminUserId = await this.getAdminUserId();
+      if (!adminUserId) {
+        console.log('⚠️ Admin user not found, skipping payment issue notification');
+        return null;
+      }
+
+      const notification = await this.createNotification({
+        userId: adminUserId,
+        type: 'payment_issue',
+        title: `💳 Payment Issue: ${paymentData.issueType}`,
+        message: paymentData.description,
+        bookingId: paymentData.bookingId,
+        apartmentId: paymentData.apartmentId,
+        guestName: paymentData.guestName,
+        ownerId: paymentData.ownerId,
+        ownerName: paymentData.ownerName,
+        priority: 'high'
+      });
+
+      console.log(`✅ Payment issue notification sent to admin: ${paymentData.issueType}`);
+      return notification;
+    } catch (error) {
+      console.error('❌ Error creating payment issue notification:', error);
+      return null;
     }
   }
 }

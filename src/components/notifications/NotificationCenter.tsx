@@ -7,7 +7,6 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
 import { notificationService, Notification } from '@/services/notificationService';
-import { NotificationSound } from '@/utils/notificationSound';
 import {
   Bell,
   BellRing,
@@ -17,7 +16,6 @@ import {
   Home,
   AlertTriangle,
   DollarSign,
-  Loader2,
   MessageCircle
 } from 'lucide-react';
 
@@ -79,22 +77,7 @@ const NotificationCenter: React.FC = () => {
     },
   });
 
-  // Trigger auto checkout mutation (for testing)
-  const triggerAutoCheckoutMutation = useMutation({
-    mutationFn: async () => {
-      const token = await getToken();
-      if (!token) throw new Error('No authentication token');
-      return notificationService.triggerAutoCheckout(token);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['notifications'] });
-      queryClient.invalidateQueries({ queryKey: ['owner-bookings'] });
-      toast({
-        title: "Auto Checkout Triggered",
-        description: "Checked for expired bookings and processed auto checkouts",
-      });
-    },
-  });
+
 
   const getNotificationIcon = (type: string) => {
     switch (type) {
@@ -185,63 +168,7 @@ const NotificationCenter: React.FC = () => {
                 Mark All Read
               </Button>
             )}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => triggerAutoCheckoutMutation.mutate()}
-              disabled={triggerAutoCheckoutMutation.isPending}
-            >
-              {triggerAutoCheckoutMutation.isPending ? (
-                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-              ) : (
-                <Home className="h-4 w-4 mr-1" />
-              )}
-              Check Auto Checkout
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                NotificationSound.playMessageSound();
-                toast({
-                  title: "🔊 Sound Test",
-                  description: "Testing notification sound",
-                });
-              }}
-            >
-              🔊 Test Sound
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                // Create a test checkout reminder
-                toast({
-                  title: "🚨 Test Checkout Reminder",
-                  description: "Your checkout time is approaching in 45 minutes! Please prepare to check out.",
-                  variant: "destructive",
-                  duration: 8000,
-                });
-                // Play urgent sound
-                NotificationSound.playNotificationSound();
-                setTimeout(() => NotificationSound.playNotificationSound(), 1000);
-              }}
-            >
-              🚨 Test Checkout Alert
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                toast({
-                  title: "💡 Self-Checkout Feature",
-                  description: "Go to 'My Bookings' tab to see the 'Check Out Now' button for checked-in bookings. This allows renters to check out early and notify owners immediately.",
-                  duration: 6000,
-                });
-              }}
-            >
-              ℹ️ Self-Checkout Info
-            </Button>
+
           </div>
         </div>
       </CardHeader>
