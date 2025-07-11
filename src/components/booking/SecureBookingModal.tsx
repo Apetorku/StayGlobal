@@ -48,7 +48,7 @@ const SecureBookingModal: React.FC<SecureBookingModalProps> = ({
   const secureBookingMutation = useMutation({
     mutationFn: async (data: any) => {
       const token = await getToken();
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'}/bookings/secure`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/bookings/secure`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
