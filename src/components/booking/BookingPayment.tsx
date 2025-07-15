@@ -8,7 +8,7 @@ import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { CreditCard, Smartphone, Loader2, CheckCircle, AlertCircle, DollarSign } from "lucide-react";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://web-production-8ffb7.up.railway.app/api';
 
 interface BookingPaymentProps {
   bookingId: string;

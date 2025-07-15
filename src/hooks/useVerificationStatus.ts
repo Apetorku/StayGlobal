@@ -131,7 +131,7 @@ export const useVerificationStatus = () => {
       }
 
       try {
-        const apiUrl = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'}/user-payments/account`;
+        const apiUrl = `${import.meta.env.VITE_API_URL || 'https://web-production-8ffb7.up.railway.app/api'}/user-payments/account`;
 
         const response = await fetch(apiUrl, {
           headers: { Authorization: `Bearer ${token}` }

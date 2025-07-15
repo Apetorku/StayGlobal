@@ -25,7 +25,7 @@
    Add these in Vercel Dashboard → Settings → Environment Variables:
    ```
    VITE_CLERK_PUBLISHABLE_KEY=pk_test_ZGl2ZXJzZS1taW5rLTYzLmNsZXJrLmFjY291bnRzLmRldiQ
-   VITE_API_URL=http://localhost:5000/api
+   VITE_API_URL=https://web-production-8ffb7.up.railway.app/api
    VITE_PAYSTACK_PUBLIC_KEY=pk_live_c242d4ef9c5f4cb8d52b89ca25bf8d1720fad0be
    VITE_ENABLE_NOTIFICATIONS=true
    ```
