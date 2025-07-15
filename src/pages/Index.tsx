@@ -27,8 +27,7 @@ const Index = () => {
             <div className="flex items-center space-x-2 cursor-pointer" onClick={() => navigate('/')}>
               <Home className="h-6 w-6 sm:h-8 sm:w-8 text-indigo-600 hover:text-indigo-700 transition-colors" />
               <h1 className="text-lg sm:text-2xl font-bold text-gray-900 hover:text-indigo-700 transition-colors">
-                <span className="hidden sm:inline">StayGlobal</span>
-                <span className="sm:hidden">Stay</span>
+                StayGlobal
               </h1>
             </div>
             <nav className="flex items-center space-x-2 sm:space-x-4">

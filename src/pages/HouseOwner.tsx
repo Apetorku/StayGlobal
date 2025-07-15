@@ -78,7 +78,7 @@ const HouseOwner = () => {
               <Building className="h-6 w-6 sm:h-8 sm:w-8 text-green-600 hover:text-green-700 transition-colors" />
               <h1 className="text-lg sm:text-2xl font-bold text-gray-900 hover:text-green-700 transition-colors">
                 <span className="hidden sm:inline">StayGlobal Owner</span>
-                <span className="sm:hidden">Owner</span>
+                <span className="sm:hidden">StayGlobal</span>
               </h1>
             </div>
             <nav className="flex items-center space-x-4">

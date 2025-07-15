@@ -71,7 +71,7 @@ const Admin = () => {
               <span className="text-2xl sm:text-3xl hover:scale-110 transition-transform">🏠</span>
               <h1 className="text-lg sm:text-2xl font-bold text-gray-900 hover:text-purple-700 transition-colors">
                 <span className="hidden sm:inline">StayGlobal Admin</span>
-                <span className="sm:hidden">Admin</span>
+                <span className="sm:hidden">StayGlobal</span>
               </h1>
             </div>
             <nav className="flex items-center space-x-4">
