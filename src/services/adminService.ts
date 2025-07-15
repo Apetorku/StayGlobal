@@ -1,11 +1,16 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL ||
+  (import.meta.env.PROD ? 'https://your-backend-url.vercel.app/api' : 'http://localhost:5000/api');
 
 console.log('🔧 Admin Service API_BASE_URL:', API_BASE_URL);
 
 export interface AdminStats {
   totalCommission: number;
+  paidCommission: number;
+  pendingCommission: number;
   totalApartments: number;
+  activeApartments: number;
   activeOwners: number;
+  totalOwners: number;
   pendingReports: number;
   totalBookings: number;
   averageRating: number;

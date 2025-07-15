@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Apartment Update</title>
+</head>
+<body>
+    <h1>Test Apartment Payment Account Update</h1>
+    <button onclick="updateApartments()">Update Apartment Payment Accounts</button>
+    <div id="result"></div>
+
+    <script>
+        async function updateApartments() {
+            try {
+                const response = await fetch('http://localhost:5000/api/admin/apartments/update-payment-accounts', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        // Note: You'll need to add proper admin authentication here
+                        // 'Authorization': 'Bearer YOUR_ADMIN_TOKEN'
+                    }
+                });
+
+                const result = await response.json();
+                document.getElementById('result').innerHTML = `
+                    <h2>Update Results:</h2>
+                    <p>Total apartments: ${result.summary?.total || 0}</p>
+                    <p>Updated: ${result.summary?.updated || 0}</p>
+                    <p>Skipped: ${result.summary?.skipped || 0}</p>
+                    <pre>${JSON.stringify(result, null, 2)}</pre>
+                `;
+            } catch (error) {
+                document.getElementById('result').innerHTML = `
+                    <h2>Error:</h2>
+                    <p>${error.message}</p>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>

@@ -9,7 +9,7 @@ import { useMutation } from "@tanstack/react-query";
 import { Loader2, CreditCard, Shield, DollarSign, ArrowLeft } from "lucide-react";
 import RenterPaymentMethodSetup from "./RenterPaymentMethodSetup";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://web-production-8ffb7.up.railway.app/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 const PAYSTACK_PUBLIC_KEY = import.meta.env.VITE_PAYSTACK_PUBLIC_KEY || 'pk_test_your_public_key';
 
 interface Apartment {

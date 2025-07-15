@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@clerk/clerk-react";
 import { CheckCircle, XCircle, Loader2, Home, Receipt } from "lucide-react";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 const PaymentCallback = () => {
   const [searchParams] = useSearchParams();

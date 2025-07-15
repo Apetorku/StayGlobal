@@ -27,7 +27,7 @@ export default function ProtectedRoute({ children, fallback }: ProtectedRoutePro
           <SignIn
             routing="hash"
             signUpUrl="/sign-up"
-            afterSignInUrl="/search"
+            afterSignInUrl="/dashboard"
           />
         </div>
       </div>

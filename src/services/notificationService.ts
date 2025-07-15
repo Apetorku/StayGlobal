@@ -1,4 +1,5 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL ||
+  (import.meta.env.PROD ? 'https://your-backend-url.vercel.app/api' : 'http://localhost:5000/api');
 
 export interface Notification {
   _id: string;
@@ -34,6 +35,52 @@ class NotificationService {
   async getNotifications(token: string, limit: number = 20): Promise<Notification[]> {
     try {
       const response = await fetch(`${API_BASE_URL}/notifications?limit=${limit}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return data.notifications;
+    } catch (error) {
+      console.error('Error fetching notifications:', error);
+      throw error;
+    }
+  }
+
+  // Get admin-specific notifications
+  async getAdminNotifications(token: string, limit: number = 20): Promise<Notification[]> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/notifications/admin?limit=${limit}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return data.notifications;
+    } catch (error) {
+      console.error('Error fetching admin notifications:', error);
+      throw error;
+    }
+  }
+
+  // Get regular user notifications (excluding admin types)
+  async getUserNotifications(token: string, limit: number = 20): Promise<Notification[]> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/notifications/user?limit=${limit}`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -195,6 +242,7 @@ class NotificationService {
       case 'payment_received': return '💰';
       case 'system_alert': return '⚠️';
       case 'new_message': return '💬';
+      case 'new_booking': return '🎉';
       default: return '📢';
     }
   }

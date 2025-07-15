@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useNavigate } from "react-router-dom";
-import { useAuth, SignInButton, SignUpButton } from "@clerk/clerk-react";
+import { useAuth } from "@clerk/clerk-react";
 import { useQuery } from "@tanstack/react-query";
 import { apartmentService } from "@/services/apartmentService";
 import { useIsAdmin } from "@/services/authService";
@@ -160,27 +160,23 @@ const Landing = () => {
       <header className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            <div className="flex items-center space-x-2">
-              <Home className="h-8 w-8 text-indigo-600" />
-              <h1 className="text-2xl font-bold text-gray-900">StayGlobal</h1>
+            <div className="flex items-center space-x-2 cursor-pointer" onClick={() => navigate('/')}>
+              <Home className="h-8 w-8 text-indigo-600 hover:text-indigo-700 transition-colors" />
+              <h1 className="text-2xl font-bold text-gray-900 hover:text-indigo-700 transition-colors">StayGlobal</h1>
             </div>
             <div className="flex items-center space-x-4">
               {isSignedIn ? (
                 <Button
                   variant="outline"
                   onClick={() => navigate('/search')}
+                  className="font-bold"
                 >
-                  Dashboard
+                  My Apartments
                 </Button>
               ) : (
-                <div className="flex items-center space-x-2">
-                  <SignInButton mode="modal">
-                    <Button variant="outline">Sign In</Button>
-                  </SignInButton>
-                  <SignUpButton mode="modal">
-                    <Button>Sign Up</Button>
-                  </SignUpButton>
-                </div>
+                <Button onClick={() => navigate('/auth')}>
+                  Get Started
+                </Button>
               )}
             </div>
           </div>
@@ -198,65 +194,23 @@ const Landing = () => {
             Connect directly with property owners, enjoy automated check-ins, and travel with confidence.
           </p>
           
-          {/* Action Buttons */}
-          <div className="flex flex-col sm:flex-row gap-6 justify-center items-center mb-16">
-            {isSignedIn ? (
-              <>
-                <Button
-                  size="lg"
-                  className="w-full sm:w-auto px-8 py-4 text-lg"
-                  onClick={() => navigate("/owner")}
-                >
-                  <Home className="mr-2 h-5 w-5" />
-                  List Your Apartment
-                </Button>
-                <Button
-                  size="lg"
-                  variant="outline"
-                  className="w-full sm:w-auto px-8 py-4 text-lg"
-                  onClick={() => navigate("/search")}
-                >
-                  <Users className="mr-2 h-5 w-5" />
-                  Find Apartments
-                </Button>
-                {isAdmin && (
+          {/* Sign In Action */}
+          <div className="flex justify-center items-center mb-16">
+            {!isSignedIn && (
+              <div className="text-center">
+                <p className="text-lg text-gray-600 mb-6">
+                  Sign in to access your personalized dashboard
+                </p>
+                <div className="flex justify-center">
                   <Button
                     size="lg"
-                    variant="secondary"
-                    className="w-full sm:w-auto px-8 py-4 text-lg"
-                    onClick={() => navigate("/admin")}
+                    className="px-8 py-4 text-lg"
+                    onClick={() => navigate('/auth')}
                   >
-                    <Shield className="mr-2 h-5 w-5" />
-                    Admin Dashboard
+                    Get Started
                   </Button>
-                )}
-              </>
-            ) : (
-              <>
-                <SignUpButton mode="modal" afterSignUpUrl="/owner">
-                  <div>
-                    <Button
-                      size="lg"
-                      className="w-full sm:w-auto px-8 py-4 text-lg"
-                    >
-                      <Home className="mr-2 h-5 w-5" />
-                      List Your Apartment
-                    </Button>
-                  </div>
-                </SignUpButton>
-                <SignUpButton mode="modal" afterSignUpUrl="/search">
-                  <div>
-                    <Button
-                      size="lg"
-                      variant="outline"
-                      className="w-full sm:w-auto px-8 py-4 text-lg"
-                    >
-                      <Users className="mr-2 h-5 w-5" />
-                      Find Apartments
-                    </Button>
-                  </div>
-                </SignUpButton>
-              </>
+                </div>
+              </div>
             )}
           </div>
         </div>

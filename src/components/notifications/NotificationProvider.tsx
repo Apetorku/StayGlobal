@@ -16,25 +16,25 @@ const NotificationProvider: React.FC<NotificationProviderProps> = ({ children })
   const lastNotificationCount = useRef<number>(0);
   const processedNotifications = useRef<Set<string>>(new Set());
 
-  // Poll for new notifications
+  // Disable notifications temporarily if causing issues
+  const NOTIFICATIONS_ENABLED = true; // Set to false to disable
+
+  // Poll for new user notifications only
   const { data: notifications = [] } = useQuery({
-    queryKey: ['notifications'],
+    queryKey: ['user-notifications'],
     queryFn: async () => {
       const token = await getToken();
       if (!token) throw new Error('No authentication token');
-      return notificationService.getNotifications(token, 10);
+      return notificationService.getUserNotifications(token, 10);
     },
-    refetchInterval: 30000, // Check every 30 seconds (reduced frequency)
-    enabled: !!userId,
-    retry: (failureCount, error) => {
-      // Don't retry on 500 errors to avoid spam
-      if (error.message.includes('500')) {
-        return false;
-      }
-      return failureCount < 2;
-    },
+    refetchInterval: 60000, // Check every 60 seconds (reduced frequency)
+    enabled: !!userId && NOTIFICATIONS_ENABLED,
+    retry: false, // Disable retries to prevent spam
     onError: (error) => {
-      console.warn('⚠️ Notification polling failed:', error.message);
+      // Silently handle errors to prevent console spam
+      if (!error.message.includes('500')) {
+        console.warn('⚠️ Notification polling failed:', error.message);
+      }
     },
   });
 
@@ -50,39 +50,30 @@ const NotificationProvider: React.FC<NotificationProviderProps> = ({ children })
       new Date(notification.createdAt).getTime() > Date.now() - (5 * 60 * 1000)
     );
 
-    newNotifications.forEach((notification: Notification) => {
-      // Mark as processed to avoid duplicate toasts
-      processedNotifications.current.add(notification._id);
+    // Only show the most recent notification to avoid spam
+    if (newNotifications.length > 0) {
+      const latestNotification = newNotifications[0];
 
-      // Show toast notification
-      const icon = notificationService.getNotificationIcon(notification.type);
+      // Mark as processed
+      processedNotifications.current.add(latestNotification._id);
 
+      // Show simple toast
       toast({
-        title: `${icon} ${notification.title}`,
-        description: notification.message,
-        duration: notification.type === 'checkout_reminder' ? 8000 :
-                 notification.type === 'new_message' ? 6000 : 4000, // Longer duration for checkout reminders
-        variant: notification.type === 'checkout_reminder' ? 'destructive' : 'default',
+        title: latestNotification.title,
+        description: latestNotification.message,
+        duration: 4000,
+        variant: latestNotification.priority === 'high' ? 'destructive' : 'default',
       });
 
-      // Play notification sound
-      if (notification.type === 'checkout_reminder') {
-        // Play urgent sound for checkout reminders
+      // Play single notification sound
+      try {
         NotificationSound.playNotificationSound();
-        // Play again after 1 second for urgency
-        setTimeout(() => NotificationSound.playNotificationSound(), 1000);
-      } else if (notification.type === 'new_message') {
-        NotificationSound.playMessageSound();
-      } else {
-        NotificationSound.playNotificationSound();
+      } catch (error) {
+        // Silently handle sound errors
       }
 
-      // Auto-refresh chat queries if it's a message notification
-      if (notification.type === 'new_message') {
-        queryClient.invalidateQueries({ queryKey: ['user-chats'] });
-        queryClient.invalidateQueries({ queryKey: ['chat-messages'] });
-      }
-    });
+      console.log('🔔 New notification:', latestNotification.title);
+    }
 
     lastNotificationCount.current = notifications.length;
   }, [notifications, toast, queryClient]);

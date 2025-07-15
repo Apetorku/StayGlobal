@@ -1,4 +1,5 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://web-production-8ffb7.up.railway.app/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL ||
+  (import.meta.env.PROD ? 'https://your-backend-url.vercel.app/api' : 'http://localhost:5000/api');
 
 export interface Booking {
   _id: string;

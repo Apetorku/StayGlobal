@@ -1,4 +1,5 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL ||
+  (import.meta.env.PROD ? 'https://your-backend-url.vercel.app/api' : 'http://localhost:5000/api');
 
 export interface Apartment {
   _id: string;
@@ -24,6 +25,14 @@ export interface Apartment {
   ownerId: string;
   ownerName: string;
   ownerEmail: string;
+  ownerPaymentAccount?: {
+    provider: 'paystack' | 'momo';
+    subaccountCode?: string;
+    accountNumber?: string;
+    bankCode?: string;
+    momoNumber?: string;
+    momoProvider?: 'mtn' | 'vodafone' | 'airteltigo';
+  };
   isActive: boolean;
   createdAt: string;
   updatedAt: string;

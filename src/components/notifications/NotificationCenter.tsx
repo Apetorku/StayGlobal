@@ -25,15 +25,19 @@ const NotificationCenter: React.FC = () => {
   const queryClient = useQueryClient();
   const [showAll, setShowAll] = useState(false);
 
-  // Fetch notifications
+  // Fetch user notifications only (excluding admin notifications)
   const { data: notifications = [], isLoading, error } = useQuery({
-    queryKey: ['notifications'],
+    queryKey: ['user-notifications'],
     queryFn: async () => {
       const token = await getToken();
       if (!token) throw new Error('No authentication token');
-      return notificationService.getNotifications(token, showAll ? 50 : 10);
+      console.log('🔍 Fetching user notifications...');
+      const result = await notificationService.getUserNotifications(token, showAll ? 50 : 10);
+      console.log('📬 Fetched notifications:', result.length, result);
+      return result;
     },
-    refetchInterval: 30000, // Refetch every 30 seconds
+    refetchInterval: 60000, // Refetch every 60 seconds
+    retry: false, // Disable retries
   });
 
   // Fetch unread count
@@ -44,7 +48,8 @@ const NotificationCenter: React.FC = () => {
       if (!token) throw new Error('No authentication token');
       return notificationService.getUnreadCount(token);
     },
-    refetchInterval: 30000,
+    refetchInterval: 60000,
+    retry: false,
   });
 
   // Mark as read mutation
@@ -55,7 +60,7 @@ const NotificationCenter: React.FC = () => {
       return notificationService.markAsRead(notificationId, token);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      queryClient.invalidateQueries({ queryKey: ['user-notifications'] });
       queryClient.invalidateQueries({ queryKey: ['notifications-unread-count'] });
     },
   });
@@ -68,7 +73,7 @@ const NotificationCenter: React.FC = () => {
       return notificationService.markAllAsRead(token);
     },
     onSuccess: (count) => {
-      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      queryClient.invalidateQueries({ queryKey: ['user-notifications'] });
       queryClient.invalidateQueries({ queryKey: ['notifications-unread-count'] });
       toast({
         title: "Success",
@@ -168,11 +173,30 @@ const NotificationCenter: React.FC = () => {
                 Mark All Read
               </Button>
             )}
-
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                queryClient.invalidateQueries({ queryKey: ['user-notifications'] });
+                queryClient.invalidateQueries({ queryKey: ['notifications-unread-count'] });
+              }}
+            >
+              🔄 Refresh
+            </Button>
           </div>
         </div>
       </CardHeader>
       <CardContent>
+        {/* User Debug Information */}
+        <div className="mb-4 p-2 bg-green-100 rounded text-sm">
+          <strong>User Notifications Debug:</strong><br/>
+          Total user notifications: {notifications.length}<br/>
+          Unread count: {unreadCount}<br/>
+          Loading: {isLoading ? 'Yes' : 'No'}<br/>
+          Error: {error ? 'Yes' : 'No'}<br/>
+          Show all: {showAll ? 'Yes' : 'No'}<br/>
+          Expected types: auto_checkout, booking_reminder, payment_received, new_message, checkout_reminder, new_booking
+        </div>
         <ScrollArea className="h-96">
           {notifications.length === 0 ? (
             <div className="text-center py-8 text-gray-500">

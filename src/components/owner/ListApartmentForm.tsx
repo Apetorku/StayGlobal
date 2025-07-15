@@ -128,11 +128,27 @@ const ListApartmentForm = () => {
     },
     onError: (error: Error) => {
       console.error('❌ Failed to create apartment:', error);
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to list apartment. Please try again.',
-        variant: 'destructive',
-      });
+
+      // Check if it's a payment account requirement error
+      if (error.message.includes('Payment account required') || error.message.includes('payment account')) {
+        toast({
+          title: 'Payment Account Required',
+          description: 'You must set up your payment account before listing apartments. Please complete your payment setup first.',
+          variant: 'destructive',
+        });
+      } else if (error.message.includes('Identity verification')) {
+        toast({
+          title: 'Identity Verification Required',
+          description: 'Please complete your identity verification before listing apartments.',
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: 'Error',
+          description: error.message || 'Failed to list apartment. Please try again.',
+          variant: 'destructive',
+        });
+      }
     },
   });
 

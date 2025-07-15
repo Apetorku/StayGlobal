@@ -5,18 +5,21 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Shield, DollarSign, Building, Users, MessageSquare, RefreshCw, AlertCircle, Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { UserButton } from "@clerk/clerk-react";
+import { UserButton, useAuth } from "@clerk/clerk-react";
+import { useNavigate } from "react-router-dom";
 import CommissionTracker from "@/components/admin/CommissionTracker";
 import ApartmentListings from "@/components/admin/ApartmentListings";
 import OwnerProfiles from "@/components/admin/OwnerProfiles";
 import AdminChat from "@/components/admin/AdminChat";
-import NotificationCenter from "@/components/notifications/NotificationCenter";
+import AdminNotificationCenter from "@/components/notifications/AdminNotificationCenter";
 import { adminService } from "@/services/adminService";
 import { adminChatService } from "@/services/adminChatService";
 import { useIsAdmin } from "@/services/authService";
 
 const Admin = () => {
   const [activeTab, setActiveTab] = useState("commissions");
+  const { getToken } = useAuth();
+  const navigate = useNavigate();
   const isAdmin = useIsAdmin();
 
   // Fetch real admin stats (only if user is admin)
@@ -64,9 +67,9 @@ const Admin = () => {
       <header className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            <div className="flex items-center space-x-2">
-              <span className="text-3xl">🏠</span>
-              <h1 className="text-2xl font-bold text-gray-900">StayGlobal Admin</h1>
+            <div className="flex items-center space-x-2 cursor-pointer" onClick={() => navigate('/')}>
+              <span className="text-3xl hover:scale-110 transition-transform">🏠</span>
+              <h1 className="text-2xl font-bold text-gray-900 hover:text-purple-700 transition-colors">StayGlobal Admin</h1>
             </div>
             <nav className="flex items-center space-x-4">
               <Button
@@ -120,7 +123,7 @@ const Admin = () => {
                   {statsLoading ? (
                     <RefreshCw className="h-8 w-8 animate-spin mx-auto" />
                   ) : (
-                    `$${displayStats.totalCommission.toFixed(2)}`
+                    `GHS ${displayStats.totalCommission.toFixed(2)}`
                   )}
                 </CardTitle>
                 <CardDescription>Total Commission (5% per booking)</CardDescription>
@@ -167,7 +170,7 @@ const Admin = () => {
 
         {/* Main Dashboard Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-5 lg:w-3/4 mx-auto mb-8">
+          <TabsList className="grid w-full grid-cols-6 lg:w-3/4 mx-auto mb-8">
             <TabsTrigger value="commissions" className="flex items-center gap-2">
               <DollarSign className="h-4 w-4" />
               Commissions
@@ -188,6 +191,10 @@ const Admin = () => {
               <MessageSquare className="h-4 w-4" />
               Chat
             </TabsTrigger>
+            <TabsTrigger value="maintenance" className="flex items-center gap-2">
+              <RefreshCw className="h-4 w-4" />
+              Maintenance
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="commissions" className="space-y-6">
@@ -204,22 +211,57 @@ const Admin = () => {
 
           <TabsContent value="notifications" className="space-y-6">
             <div className="max-w-4xl mx-auto">
-              <div className="mb-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Admin Notifications</CardTitle>
-                    <CardDescription>
-                      View all system notifications including new apartments, bookings, verifications, and messages from owners.
-                    </CardDescription>
-                  </CardHeader>
-                </Card>
-              </div>
-              <NotificationCenter />
+              <AdminNotificationCenter />
             </div>
           </TabsContent>
 
           <TabsContent value="chat" className="space-y-6">
             <AdminChat />
+          </TabsContent>
+
+          <TabsContent value="maintenance" className="space-y-6">
+            <div className="max-w-4xl mx-auto">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <RefreshCw className="h-5 w-5" />
+                    System Maintenance
+                  </CardTitle>
+                  <CardDescription>
+                    Administrative tools for system maintenance and data updates
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="border rounded-lg p-4">
+                    <h3 className="font-semibold mb-2">Update Apartment Payment Accounts</h3>
+                    <p className="text-sm text-gray-600 mb-4">
+                      Updates existing apartments with their owner's payment account information.
+                      This is needed for apartments created before payment accounts were required.
+                    </p>
+                    <Button
+                      onClick={async () => {
+                        try {
+                          const response = await fetch('/api/admin/apartments/update-payment-accounts', {
+                            method: 'POST',
+                            headers: {
+                              'Authorization': `Bearer ${await getToken()}`
+                            }
+                          });
+                          const result = await response.json();
+                          alert(`Update completed: ${result.summary.updated} apartments updated, ${result.summary.skipped} skipped`);
+                        } catch (error) {
+                          alert('Update failed: ' + error.message);
+                        }
+                      }}
+                      className="w-full"
+                    >
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      Update Apartment Payment Accounts
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
         </Tabs>
       </main>

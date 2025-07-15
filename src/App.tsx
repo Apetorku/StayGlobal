@@ -15,6 +15,8 @@ import HouseOwner from "./pages/HouseOwner";
 import Admin from "./pages/Admin";
 import PaymentCallback from "./pages/PaymentCallback";
 import NotFound from "./pages/NotFound";
+import RoleBasedRedirect from "./components/RoleBasedRedirect";
+import RoleSelectionAuth from "./components/RoleSelectionAuth";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -43,6 +45,12 @@ const App = () => (
           <BrowserRouter>
           <Routes>
             <Route path="/" element={<Landing />} />
+            <Route path="/auth" element={<RoleSelectionAuth />} />
+            <Route path="/dashboard" element={
+              <ProtectedRoute>
+                <RoleBasedRedirect />
+              </ProtectedRoute>
+            } />
             <Route path="/search" element={
               <ProtectedRoute>
                 <Index />

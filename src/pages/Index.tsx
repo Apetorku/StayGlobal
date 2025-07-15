@@ -3,17 +3,20 @@ import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { useUser, UserButton } from "@clerk/clerk-react";
+import { useNavigate } from "react-router-dom";
 import ApartmentSearch from "@/components/ApartmentSearch";
 import MyBookings from "@/components/MyBookings";
 import RenterChat from "@/components/renter/RenterChat";
 import NotificationCenter from "@/components/notifications/NotificationCenter";
 import NotificationBadge from "@/components/notifications/NotificationBadge";
+import MaintenanceButton from "@/components/MaintenanceButton";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Home, Search, Calendar, MessageSquare, Bell } from "lucide-react";
+import { Home, Search, Calendar, MessageSquare, Bell, Settings } from "lucide-react";
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState("search");
   const { user } = useUser();
+  const navigate = useNavigate();
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
@@ -21,9 +24,9 @@ const Index = () => {
       <header className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            <div className="flex items-center space-x-2">
-              <Home className="h-8 w-8 text-indigo-600" />
-              <h1 className="text-2xl font-bold text-gray-900">StayGlobal</h1>
+            <div className="flex items-center space-x-2 cursor-pointer" onClick={() => navigate('/')}>
+              <Home className="h-8 w-8 text-indigo-600 hover:text-indigo-700 transition-colors" />
+              <h1 className="text-2xl font-bold text-gray-900 hover:text-indigo-700 transition-colors">StayGlobal</h1>
             </div>
             <nav className="flex items-center space-x-4">
               <span className="text-gray-600">
@@ -78,7 +81,7 @@ const Index = () => {
 
         {/* Main Dashboard Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-4 lg:w-2/3 mx-auto mb-8">
+          <TabsList className="grid w-full grid-cols-5 lg:w-2/3 mx-auto mb-8">
             <TabsTrigger value="search" className="flex items-center gap-2">
               <Search className="h-4 w-4" />
               Search
@@ -96,6 +99,10 @@ const Index = () => {
               Notifications
               <NotificationBadge />
             </TabsTrigger>
+            <TabsTrigger value="maintenance" className="flex items-center gap-2">
+              <Settings className="h-4 w-4" />
+              Maintenance
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="search" className="space-y-6">
@@ -112,6 +119,12 @@ const Index = () => {
 
           <TabsContent value="notifications" className="space-y-6">
             <NotificationCenter />
+          </TabsContent>
+
+          <TabsContent value="maintenance" className="space-y-6">
+            <div className="max-w-4xl mx-auto">
+              <MaintenanceButton />
+            </div>
           </TabsContent>
         </Tabs>
       </main>

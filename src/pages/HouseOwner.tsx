@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth, UserButton } from "@clerk/clerk-react";
+import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { apartmentService } from "@/services/apartmentService";
 import { bookingService } from "@/services/bookingService";
@@ -20,6 +21,7 @@ import NotificationBadge from "@/components/notifications/NotificationBadge";
 const HouseOwner = () => {
   const [activeTab, setActiveTab] = useState("list");
   const { getToken, userId, isSignedIn } = useAuth();
+  const navigate = useNavigate();
 
   // Fetch owner's apartments
   const { data: apartmentData, isLoading: apartmentsLoading, error: apartmentError } = useQuery({
@@ -72,9 +74,9 @@ const HouseOwner = () => {
       <header className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            <div className="flex items-center space-x-2">
-              <Building className="h-8 w-8 text-green-600" />
-              <h1 className="text-2xl font-bold text-gray-900">StayGlobal Owner</h1>
+            <div className="flex items-center space-x-2 cursor-pointer" onClick={() => navigate('/')}>
+              <Building className="h-8 w-8 text-green-600 hover:text-green-700 transition-colors" />
+              <h1 className="text-2xl font-bold text-gray-900 hover:text-green-700 transition-colors">StayGlobal Owner</h1>
             </div>
             <nav className="flex items-center space-x-4">
               <UserButton
