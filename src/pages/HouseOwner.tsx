@@ -75,8 +75,11 @@ const HouseOwner = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-2 cursor-pointer" onClick={() => navigate('/')}>
-              <Building className="h-8 w-8 text-green-600 hover:text-green-700 transition-colors" />
-              <h1 className="text-2xl font-bold text-gray-900 hover:text-green-700 transition-colors">StayGlobal Owner</h1>
+              <Building className="h-6 w-6 sm:h-8 sm:w-8 text-green-600 hover:text-green-700 transition-colors" />
+              <h1 className="text-lg sm:text-2xl font-bold text-gray-900 hover:text-green-700 transition-colors">
+                <span className="hidden sm:inline">StayGlobal Owner</span>
+                <span className="sm:hidden">Owner</span>
+              </h1>
             </div>
             <nav className="flex items-center space-x-4">
               <UserButton
@@ -95,11 +98,11 @@ const HouseOwner = () => {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Welcome Section */}
-        <div className="text-center mb-10">
-          <h2 className="text-4xl font-bold text-gray-900 mb-4">
+        <div className="text-center mb-6 sm:mb-10">
+          <h2 className="text-2xl sm:text-4xl font-bold text-gray-900 mb-2 sm:mb-4">
             Property Owner Dashboard
           </h2>
-          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+          <p className="text-base sm:text-xl text-gray-600 max-w-2xl mx-auto px-4">
             Manage your properties, track bookings, and communicate with guests
           </p>
         </div>
@@ -142,30 +145,36 @@ const HouseOwner = () => {
 
         {/* Main Dashboard Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-6 lg:w-4/5 mx-auto mb-8">
-            <TabsTrigger value="list" className="flex items-center gap-2">
-              <Plus className="h-4 w-4" />
-              List Apartment
+          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 lg:w-4/5 mx-auto mb-8 h-auto p-1">
+            <TabsTrigger value="list" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm p-2 sm:p-3">
+              <Plus className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline">List Apartment</span>
+              <span className="sm:hidden">List</span>
             </TabsTrigger>
-            <TabsTrigger value="checkin" className="flex items-center gap-2">
-              <UserCheck className="h-4 w-4" />
-              Check-In
+            <TabsTrigger value="checkin" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm p-2 sm:p-3">
+              <UserCheck className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline">Check-In</span>
+              <span className="sm:hidden">Check</span>
             </TabsTrigger>
-            <TabsTrigger value="bookings" className="flex items-center gap-2">
-              <Calendar className="h-4 w-4" />
-              Bookings
+            <TabsTrigger value="bookings" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm p-2 sm:p-3">
+              <Calendar className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline">Bookings</span>
+              <span className="sm:hidden">Books</span>
             </TabsTrigger>
-            <TabsTrigger value="payments" className="flex items-center gap-2">
-              <DollarSign className="h-4 w-4" />
-              Payments
+            <TabsTrigger value="payments" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm p-2 sm:p-3">
+              <DollarSign className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline">Payments</span>
+              <span className="sm:hidden">Pay</span>
             </TabsTrigger>
-            <TabsTrigger value="chat" className="flex items-center gap-2">
-              <MessageSquare className="h-4 w-4" />
-              Chat
+            <TabsTrigger value="chat" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm p-2 sm:p-3">
+              <MessageSquare className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline">Chat</span>
+              <span className="sm:hidden">Chat</span>
             </TabsTrigger>
-            <TabsTrigger value="notifications" className="flex items-center gap-2">
-              <Bell className="h-4 w-4" />
-              Notifications
+            <TabsTrigger value="notifications" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm p-2 sm:p-3">
+              <Bell className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline">Notifications</span>
+              <span className="sm:hidden">Alerts</span>
               <NotificationBadge />
             </TabsTrigger>
           </TabsList>
