@@ -23,6 +23,16 @@ export default function RoleSelectionAuth() {
     return '/dashboard';
   };
 
+  const handleSignInError = () => {
+    // When sign-in fails (user doesn't exist), switch to sign-up mode
+    setMode('sign-up');
+  };
+
+  const handleSignUpSuccess = () => {
+    // After successful sign-up, redirect immediately
+    navigate('/dashboard');
+  };
+
   if (mode === 'role-selection') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
@@ -130,8 +140,18 @@ export default function RoleSelectionAuth() {
         <div className="w-full max-w-md">
           <div className="text-center mb-6">
             <h2 className="text-2xl font-bold">Sign In as {selectedRole.charAt(0).toUpperCase() + selectedRole.slice(1)}</h2>
-            <Button 
-              variant="ghost" 
+            <p className="text-gray-600 mt-2">
+              Don't have an account?
+              <Button
+                variant="link"
+                onClick={() => setMode('sign-up')}
+                className="p-0 ml-1 h-auto font-medium text-blue-600"
+              >
+                Sign up here
+              </Button>
+            </p>
+            <Button
+              variant="ghost"
               onClick={() => setMode('role-selection')}
               className="mt-2"
             >
@@ -146,7 +166,9 @@ export default function RoleSelectionAuth() {
             appearance={{
               elements: {
                 rootBox: "w-full",
-                card: "w-full shadow-lg"
+                card: "w-full shadow-lg",
+                formButtonPrimary: "bg-blue-600 hover:bg-blue-700",
+                footerActionLink: "text-blue-600 hover:text-blue-700"
               }
             }}
             fallbackRedirectUrl={getRedirectUrl()}
@@ -163,8 +185,18 @@ export default function RoleSelectionAuth() {
         <div className="w-full max-w-md">
           <div className="text-center mb-6">
             <h2 className="text-2xl font-bold">Sign Up as {selectedRole.charAt(0).toUpperCase() + selectedRole.slice(1)}</h2>
-            <Button 
-              variant="ghost" 
+            <p className="text-gray-600 mt-2">
+              Already have an account?
+              <Button
+                variant="link"
+                onClick={() => setMode('sign-in')}
+                className="p-0 ml-1 h-auto font-medium text-blue-600"
+              >
+                Sign in here
+              </Button>
+            </p>
+            <Button
+              variant="ghost"
               onClick={() => setMode('role-selection')}
               className="mt-2"
             >
@@ -179,7 +211,9 @@ export default function RoleSelectionAuth() {
             appearance={{
               elements: {
                 rootBox: "w-full",
-                card: "w-full shadow-lg"
+                card: "w-full shadow-lg",
+                formButtonPrimary: "bg-blue-600 hover:bg-blue-700",
+                footerActionLink: "text-blue-600 hover:text-blue-700"
               }
             }}
             fallbackRedirectUrl={getRedirectUrl()}

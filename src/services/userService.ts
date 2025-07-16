@@ -88,6 +88,65 @@ export const userService = {
     }
   },
 
+  async updateUserRole(role: 'guest' | 'owner' | 'admin', token: string): Promise<{ message: string; role: string }> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+
+    try {
+      console.log('Attempting to update user role to:', role);
+
+      const response = await fetch(`${API_BASE_URL}/users/update-role`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ role }),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      console.log('Role update response status:', response.status);
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({
+          message: `HTTP ${response.status}: Failed to update user role`,
+          error: 'Network or server error'
+        }));
+
+        // Provide user-friendly error messages
+        let userMessage = errorData.message || 'Failed to update user role';
+
+        if (response.status === 400) {
+          userMessage = 'Invalid role specified. Please try again.';
+        } else if (response.status === 401) {
+          userMessage = 'Authentication required. Please sign in again.';
+        } else if (response.status === 404) {
+          userMessage = 'User account not found. Please try signing up again.';
+        } else if (response.status >= 500) {
+          userMessage = 'Server error. Please try again in a few moments.';
+        }
+
+        throw new Error(userMessage);
+      }
+
+      const result = await response.json();
+      console.log('User role updated successfully:', result);
+      return result;
+    } catch (error) {
+      clearTimeout(timeoutId);
+      console.error('Role update error details:', error);
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error('Request timeout - please try again');
+      }
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        throw new Error('Network error - please check if the backend server is running');
+      }
+      throw error;
+    }
+  },
+
   async getProfile(token: string): Promise<User> {
     const response = await fetch(`${API_BASE_URL}/users/profile`, {
       headers: {

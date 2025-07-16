@@ -1,13 +1,15 @@
 import { useEffect, useRef } from 'react';
-import { useUser } from '@clerk/clerk-react';
+import { useUser, useAuth } from '@clerk/clerk-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { userService } from '@/services/userService';
 
 export default function UserSync() {
   const { user, isSignedIn } = useUser();
+  const { getToken } = useAuth();
   const queryClient = useQueryClient();
   const hasSyncedRef = useRef(false);
   const syncedUserIdRef = useRef<string | null>(null);
+  const hasAssignedRoleRef = useRef(false);
 
   const syncUserMutation = useMutation({
     mutationFn: (clerkUserId: string) => userService.syncUser(clerkUserId),
@@ -17,6 +19,14 @@ export default function UserSync() {
       console.log('✅ User sync successful:', data);
       hasSyncedRef.current = true;
       syncedUserIdRef.current = user?.id || null;
+
+      // Check if we need to assign a role from localStorage
+      const selectedRole = localStorage.getItem('selectedRole') as 'guest' | 'owner' | 'admin' | null;
+      if (selectedRole && !hasAssignedRoleRef.current && data.role === 'guest') {
+        console.log('🎯 Found selected role in localStorage:', selectedRole);
+        // Trigger role assignment
+        assignRoleMutation.mutate(selectedRole);
+      }
 
       // Invalidate verification status queries to ensure fresh data after user sync
       // This ensures that if the user has verification status in the database,
@@ -38,6 +48,32 @@ export default function UserSync() {
           console.error('⏱️ Request timeout - server may be slow');
         }
       }
+    },
+  });
+
+  const assignRoleMutation = useMutation({
+    mutationFn: async (role: 'guest' | 'owner' | 'admin') => {
+      const token = await getToken();
+      if (!token) {
+        throw new Error('No authentication token available');
+      }
+      return userService.updateUserRole(role, token);
+    },
+    onSuccess: (data, role) => {
+      console.log('✅ Role assignment successful:', data);
+      hasAssignedRoleRef.current = true;
+
+      // Clear the selected role from localStorage since it's been assigned
+      localStorage.removeItem('selectedRole');
+
+      // Invalidate queries to refresh user data
+      queryClient.invalidateQueries({ queryKey: ['user-role'] });
+      queryClient.invalidateQueries({ queryKey: ['verification-status'] });
+      queryClient.invalidateQueries({ queryKey: ['payment-account-status'] });
+    },
+    onError: (error) => {
+      console.error('❌ Failed to assign role:', error);
+      hasAssignedRoleRef.current = false;
     },
   });
 
@@ -79,6 +115,7 @@ export default function UserSync() {
       console.log('🔄 User signed out, resetting sync status');
       hasSyncedRef.current = false;
       syncedUserIdRef.current = null;
+      hasAssignedRoleRef.current = false;
     }
   }, [isSignedIn]);
 
