@@ -11,9 +11,10 @@ export default function UserSync() {
 
   const syncUserMutation = useMutation({
     mutationFn: (clerkUserId: string) => userService.syncUser(clerkUserId),
-    retry: 2, // Limit retries to prevent resource exhaustion
+    retry: 3, // Increase retries for better reliability
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000), // Exponential backoff
     onSuccess: (data) => {
+      console.log('✅ User sync successful:', data);
       hasSyncedRef.current = true;
       syncedUserIdRef.current = user?.id || null;
 
@@ -22,11 +23,21 @@ export default function UserSync() {
       // it will be fetched and cached properly
       queryClient.invalidateQueries({ queryKey: ['verification-status'] });
       queryClient.invalidateQueries({ queryKey: ['payment-account-status'] });
+      queryClient.invalidateQueries({ queryKey: ['user-role'] });
     },
     onError: (error) => {
-      console.error('Failed to sync user:', error);
+      console.error('❌ Failed to sync user:', error);
       // Reset the flag on error so it can retry later
       hasSyncedRef.current = false;
+
+      // Show user-friendly error message
+      if (error instanceof Error) {
+        if (error.message.includes('Network error')) {
+          console.error('🌐 Network connectivity issue detected');
+        } else if (error.message.includes('timeout')) {
+          console.error('⏱️ Request timeout - server may be slow');
+        }
+      }
     },
   });
 

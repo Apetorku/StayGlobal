@@ -149,6 +149,8 @@ export default function RoleSelectionAuth() {
                 card: "w-full shadow-lg"
               }
             }}
+            fallbackRedirectUrl={getRedirectUrl()}
+            forceRedirectUrl={getRedirectUrl()}
           />
         </div>
       </div>
@@ -180,6 +182,8 @@ export default function RoleSelectionAuth() {
                 card: "w-full shadow-lg"
               }
             }}
+            fallbackRedirectUrl={getRedirectUrl()}
+            forceRedirectUrl={getRedirectUrl()}
           />
         </div>
       </div>

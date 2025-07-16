@@ -53,8 +53,23 @@ export const userService = {
       console.log('Sync response status:', response.status);
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
-        throw new Error(errorData.message || `HTTP ${response.status}: Failed to sync user`);
+        const errorData = await response.json().catch(() => ({
+          message: `HTTP ${response.status}: Failed to sync user`,
+          error: 'Network or server error'
+        }));
+
+        // Provide user-friendly error messages
+        let userMessage = errorData.message || 'Failed to sync user account';
+
+        if (response.status === 404) {
+          userMessage = 'User account not found. Please try signing up again.';
+        } else if (response.status === 400) {
+          userMessage = 'Invalid user data. Please check your account information.';
+        } else if (response.status >= 500) {
+          userMessage = 'Server error. Please try again in a few moments.';
+        }
+
+        throw new Error(userMessage);
       }
 
       const userData = await response.json();
