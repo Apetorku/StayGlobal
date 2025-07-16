@@ -26,6 +26,9 @@ export default function UserSync() {
         console.log('🎯 Found selected role in localStorage:', selectedRole);
         // Trigger role assignment
         assignRoleMutation.mutate(selectedRole);
+      } else if (selectedRole && data.role !== 'guest') {
+        console.log('🎯 User already has role:', data.role, 'clearing selected role');
+        localStorage.removeItem('selectedRole');
       }
 
       // Invalidate verification status queries to ensure fresh data after user sync
@@ -63,8 +66,8 @@ export default function UserSync() {
       console.log('✅ Role assignment successful:', data);
       hasAssignedRoleRef.current = true;
 
-      // Clear the selected role from localStorage since it's been assigned
-      localStorage.removeItem('selectedRole');
+      // Don't clear localStorage here - let RoleBasedRedirect handle it
+      // This ensures the redirect happens with the correct role
 
       // Invalidate queries to refresh user data
       queryClient.invalidateQueries({ queryKey: ['user-role'] });

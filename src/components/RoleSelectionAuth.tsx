@@ -19,6 +19,7 @@ export default function RoleSelectionAuth() {
 
   const getRedirectUrl = () => {
     // Store the selected role in localStorage so we can use it after auth
+    console.log('🎯 Storing selected role in localStorage:', selectedRole);
     localStorage.setItem('selectedRole', selectedRole);
     return '/dashboard';
   };

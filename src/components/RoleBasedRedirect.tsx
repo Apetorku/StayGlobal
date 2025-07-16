@@ -17,9 +17,26 @@ export default function RoleBasedRedirect() {
   const { user, isLoaded } = useUser();
   const navigate = useNavigate();
   const [hasRedirected, setHasRedirected] = useState(false);
+  const [selectedRole, setSelectedRole] = useState<'guest' | 'owner' | 'admin' | null>(null);
 
-  // Check for selected role first (immediate redirect)
-  const selectedRole = localStorage.getItem('selectedRole') as 'guest' | 'owner' | 'admin' | null;
+  // Check for selected role on component mount and periodically
+  useEffect(() => {
+    const checkForSelectedRole = () => {
+      const storedRole = localStorage.getItem('selectedRole') as 'guest' | 'owner' | 'admin' | null;
+      if (storedRole && storedRole !== selectedRole) {
+        console.log('🎯 Found selected role in localStorage:', storedRole);
+        setSelectedRole(storedRole);
+      }
+    };
+
+    // Check immediately
+    checkForSelectedRole();
+
+    // Also check periodically in case localStorage is updated
+    const interval = setInterval(checkForSelectedRole, 500);
+
+    return () => clearInterval(interval);
+  }, [selectedRole]);
 
   // Fetch user data from backend to get role (only if no selected role)
   const { data: userData, isLoading, error } = useQuery({
@@ -66,49 +83,51 @@ export default function RoleBasedRedirect() {
 
     switch (role) {
       case 'admin':
-        navigate('/admin');
+        navigate('/admin', { replace: true });
         break;
       case 'owner':
-        navigate('/owner');
+        navigate('/owner', { replace: true });
         break;
       case 'guest':
       default:
-        navigate('/search');
+        navigate('/search', { replace: true });
         break;
     }
   };
 
+  // Immediate redirect effect for selected role
   useEffect(() => {
-    if (!isLoaded || !user || hasRedirected) return;
+    if (selectedRole && isLoaded && user && !hasRedirected) {
+      console.log('🚀 Immediate redirect triggered for selected role:', selectedRole);
+      localStorage.removeItem('selectedRole');
+      setSelectedRole(null);
+      redirectBasedOnRole(selectedRole);
+    }
+  }, [selectedRole, isLoaded, user, hasRedirected]);
 
-    console.log('🔍 RoleBasedRedirect - Effect triggered');
-    console.log('   selectedRole:', selectedRole);
+  // Fallback redirect effect for when no selected role is available
+  useEffect(() => {
+    if (!isLoaded || !user || hasRedirected || selectedRole) return;
+
+    console.log('🔍 RoleBasedRedirect - Fallback effect triggered');
     console.log('   userData:', userData);
     console.log('   isLoading:', isLoading);
     console.log('   error:', error);
 
-    // Priority 1: Use selected role for immediate redirect
-    if (selectedRole) {
-      console.log('🚀 Using selected role for immediate redirect:', selectedRole);
-      localStorage.removeItem('selectedRole');
-      redirectBasedOnRole(selectedRole);
-      return;
-    }
-
-    // Priority 2: Use user data from backend
+    // Use user data from backend
     if (userData && !isLoading) {
       console.log('🎯 Using role from database:', userData.role);
       redirectBasedOnRole(userData.role);
       return;
     }
 
-    // Priority 3: Handle error cases or fallback
+    // Handle error cases or fallback
     if (error && !isLoading) {
       console.log('⚠️ Backend call failed, defaulting to guest');
       redirectBasedOnRole('guest');
       return;
     }
-  }, [isLoaded, user, selectedRole, userData, isLoading, error, hasRedirected, navigate]);
+  }, [isLoaded, user, selectedRole, userData, isLoading, error, hasRedirected]);
 
   // Timeout fallback to prevent infinite loops
   useEffect(() => {
@@ -117,13 +136,13 @@ export default function RoleBasedRedirect() {
         console.log('⏰ Timeout reached, forcing redirect to guest dashboard');
         redirectBasedOnRole('guest');
       }
-    }, 5000); // 5 second timeout
+    }, 3000); // 3 second timeout
 
     return () => clearTimeout(timeout);
   }, [isLoaded, user, hasRedirected]);
 
   // Show loading while determining role
-  if (!isLoaded || (isLoading && !selectedRole) || !hasRedirected) {
+  if (!isLoaded || (!hasRedirected && !selectedRole && isLoading)) {
     const roleMessage = selectedRole
       ? `Setting up your ${selectedRole} dashboard...`
       : "Setting up your account...";
