@@ -65,6 +65,11 @@ const HouseOwner = () => {
           const currentYear = new Date().getFullYear();
 
           const monthlyTotal = data.commissions?.reduce((total: number, commission: any) => {
+            // Only include commissions for the current user's properties
+            if (commission.ownerId !== userId) {
+              return total;
+            }
+
             const commissionDate = new Date(commission.bookingDate);
             if (commissionDate.getMonth() === currentMonth && commissionDate.getFullYear() === currentYear) {
               return total + (commission.roomPrice || 0);
@@ -81,14 +86,21 @@ const HouseOwner = () => {
         return 0;
       }
     },
-    enabled: !bookingData?.bookings?.length // Only run if we don't have booking data
+    enabled: !!apartmentData?.apartments?.length && !bookingData?.bookings?.length // Only run if owner has apartments but no bookings
   });
+
+
 
   // Calculate real stats
   const stats = {
     totalProperties: apartmentData?.apartments?.length || 0,
     activeBookings: bookingData?.bookings?.filter(b => b.bookingStatus === 'confirmed').length || 0,
     monthlyEarnings: (() => {
+      // If owner has no apartments, they have no earnings
+      if (!apartmentData?.apartments?.length) {
+        return 0;
+      }
+
       // If we have booking data, calculate from bookings
       if (bookingData?.bookings?.length > 0) {
         return bookingData.bookings.reduce((total, booking) => {
@@ -108,7 +120,7 @@ const HouseOwner = () => {
         }, 0);
       }
 
-      // Fallback: Use monthly earnings from commission data
+      // Fallback: Use monthly earnings from commission data (only for owners with apartments but no bookings)
       return monthlyEarningsData || 0;
     })(),
     totalGuests: bookingData?.bookings?.reduce((total, booking) => total + booking.guests, 0) || 0
