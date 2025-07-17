@@ -198,7 +198,9 @@ export const bookingService = {
       throw new Error(errorData.message || 'Failed to update booking status');
     }
 
-    return response.json();
+    const data = await response.json();
+    // Backend returns { message, booking }, we need just the booking
+    return data.booking || data;
   },
 
   // Self-checkout for renters

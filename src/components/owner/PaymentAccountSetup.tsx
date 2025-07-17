@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@clerk/clerk-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { CreditCard, Smartphone, CheckCircle, AlertCircle, Loader2, Trash2 } from "lucide-react";
+import { CreditCard, Smartphone, CheckCircle, AlertCircle, Loader2, Trash2, RefreshCw } from "lucide-react";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://web-production-8ffb7.up.railway.app/api';
 
@@ -62,6 +62,8 @@ const PaymentAccountSetup: React.FC<PaymentAccountSetupProps> = ({ onSetupComple
     bankCode: string;
   } | null>(null);
 
+  const [refreshingBanks, setRefreshingBanks] = useState(false);
+
   // Fetch current payment account
   const { data: paymentAccount, isLoading: accountLoading } = useQuery({
     queryKey: ['payment-account'],
@@ -81,26 +83,59 @@ const PaymentAccountSetup: React.FC<PaymentAccountSetupProps> = ({ onSetupComple
   });
 
   // Fetch banks
-  const { data: banksData, isLoading: banksLoading } = useQuery({
+  const { data: banksData, isLoading: banksLoading, error: banksError, refetch: refetchBanks } = useQuery({
     queryKey: ['banks'],
     queryFn: async () => {
-      const token = await getToken();
-      if (!token) {
-        throw new Error('No authentication token available');
+      console.log('🏦 Starting banks fetch...');
+      console.log('🏦 API URL:', `${API_BASE_URL}/user-payments/banks`);
+
+      try {
+        const response = await fetch(`${API_BASE_URL}/user-payments/banks`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+
+        console.log('🏦 Response received:', response.status, response.statusText);
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('❌ Response not OK:', errorText);
+          throw new Error(`HTTP ${response.status}: ${errorText}`);
+        }
+
+        const data = await response.json();
+        console.log('✅ JSON parsed successfully:', data);
+
+        if (data.banks && Array.isArray(data.banks)) {
+          console.log('✅ Banks array found with', data.banks.length, 'items');
+          return data.banks as Bank[];
+        } else {
+          console.error('❌ Invalid response structure:', data);
+          throw new Error('Invalid response format');
+        }
+      } catch (fetchError) {
+        console.error('❌ Fetch error:', fetchError);
+        throw fetchError;
       }
-      const response = await fetch(`${API_BASE_URL}/user-payments/banks`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (!response.ok) throw new Error('Failed to fetch banks');
-      const data = await response.json();
-      return data.banks as Bank[];
     },
-    enabled: !!isSignedIn && !!user
+    retry: 1,
+    retryDelay: 1000,
+    enabled: true,
+    onError: (error) => {
+      console.error('❌ Query error:', error);
+    },
+    onSuccess: (data) => {
+      console.log('✅ Query success with', data?.length, 'banks');
+    }
   });
 
   // Verify account number
   const verifyAccountMutation = useMutation({
     mutationFn: async ({ accountNumber, bankCode }: { accountNumber: string; bankCode: string }) => {
+      console.log('🔍 Verifying account:', { accountNumber, bankCode });
+
       const token = await getToken();
       const response = await fetch(`${API_BASE_URL}/user-payments/verify-account`, {
         method: 'POST',
@@ -110,20 +145,37 @@ const PaymentAccountSetup: React.FC<PaymentAccountSetupProps> = ({ onSetupComple
         },
         body: JSON.stringify({ accountNumber, bankCode })
       });
-      if (!response.ok) throw new Error('Failed to verify account');
-      return response.json();
+
+      console.log('🔍 Verify response status:', response.status);
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        console.error('❌ Account verification error:', errorData);
+        throw new Error(errorData.error || `Verification failed: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('✅ Account verified:', data);
+      return data;
     },
     onSuccess: (data) => {
       setVerifiedAccount(data);
       toast.success(`Account verified: ${data.accountName}`);
     },
-    onError: () => {
-      toast.error('Failed to verify account. Please check your details.');
+    onError: (error: Error) => {
+      console.error('❌ Verification error:', error);
+
+      // Check if it's a bank code error and provide helpful message
+      if (error.message.includes('Unknown bank code') || error.message.includes('Invalid bank code')) {
+        toast.error('Bank not supported. Please refresh the page and select a different bank, or contact support.');
+      } else {
+        toast.error(`Failed to verify account: ${error.message}`);
+      }
       setVerifiedAccount(null);
     }
   });
 
-  // Setup Paystack account
+  // Setup Paystack account (free)
   const setupPaystackMutation = useMutation({
     mutationFn: async (data: typeof paystackForm) => {
       const token = await getToken();
@@ -142,7 +194,7 @@ const PaymentAccountSetup: React.FC<PaymentAccountSetupProps> = ({ onSetupComple
       return response.json();
     },
     onSuccess: () => {
-      toast.success('Paystack account setup successfully!');
+      toast.success('Payment account setup successfully!');
       queryClient.invalidateQueries({ queryKey: ['payment-account'] });
       setPaystackForm({ bankCode: '', accountNumber: '', businessName: '', description: '' });
       setVerifiedAccount(null);
@@ -155,9 +207,12 @@ const PaymentAccountSetup: React.FC<PaymentAccountSetupProps> = ({ onSetupComple
       }
     },
     onError: (error: Error) => {
-      toast.error(error.message);
+      console.error('❌ Paystack setup error:', error);
+      toast.error(error.message || 'Failed to setup Paystack account. Please try again.');
     }
   });
+
+
 
   // Setup Mobile Money account
   const setupMomoMutation = useMutation({
@@ -190,7 +245,8 @@ const PaymentAccountSetup: React.FC<PaymentAccountSetupProps> = ({ onSetupComple
       }
     },
     onError: (error: Error) => {
-      toast.error(error.message);
+      console.error('❌ Mobile Money setup error:', error);
+      toast.error(error.message || 'Failed to setup Mobile Money account. Please try again.');
     }
   });
 
@@ -223,6 +279,18 @@ const PaymentAccountSetup: React.FC<PaymentAccountSetupProps> = ({ onSetupComple
       accountNumber: paystackForm.accountNumber,
       bankCode: paystackForm.bankCode
     });
+  };
+
+  const handleRefreshBanks = async () => {
+    setRefreshingBanks(true);
+    try {
+      await refetchBanks();
+      toast.success('Banks list refreshed');
+    } catch (error) {
+      toast.error('Failed to refresh banks list');
+    } finally {
+      setRefreshingBanks(false);
+    }
   };
 
   const handlePaystackSubmit = (e: React.FormEvent) => {
@@ -348,10 +416,46 @@ const PaymentAccountSetup: React.FC<PaymentAccountSetupProps> = ({ onSetupComple
           </TabsList>
 
           <TabsContent value="paystack" className="space-y-4">
+            {banksError && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-sm text-red-800">
+                  ⚠️ Unable to load banks list. Please refresh the page or contact support if the issue persists.
+                </p>
+              </div>
+            )}
+
+            <div className="space-y-4 mb-6">
+              <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="h-5 w-5 text-blue-600 mt-0.5" />
+                  <div>
+                    <h4 className="font-medium text-blue-900">Free Payment Account Setup</h4>
+                    <p className="text-sm text-blue-800 mt-1">
+                      Set up your bank account to receive payments directly from renters.
+                      This is completely free and enables you to start earning from your listings.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <form onSubmit={handlePaystackSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="bank">Bank</Label>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="bank">Bank</Label>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleRefreshBanks}
+                      disabled={refreshingBanks || banksLoading}
+                      className="h-6 px-2 text-xs"
+                    >
+                      <RefreshCw className={`h-3 w-3 mr-1 ${refreshingBanks ? 'animate-spin' : ''}`} />
+                      Refresh
+                    </Button>
+                  </div>
                   <Select
                     value={paystackForm.bankCode}
                     onValueChange={(value) => setPaystackForm(prev => ({ ...prev, bankCode: value }))}
@@ -362,12 +466,16 @@ const PaymentAccountSetup: React.FC<PaymentAccountSetupProps> = ({ onSetupComple
                     <SelectContent>
                       {banksLoading ? (
                         <SelectItem value="loading" disabled>Loading banks...</SelectItem>
-                      ) : (
-                        banksData?.map((bank) => (
+                      ) : banksError ? (
+                        <SelectItem value="error" disabled>Error loading banks. Please refresh.</SelectItem>
+                      ) : banksData && banksData.length > 0 ? (
+                        banksData.map((bank) => (
                           <SelectItem key={bank.code} value={bank.code}>
                             {bank.name}
                           </SelectItem>
                         ))
+                      ) : (
+                        <SelectItem value="no-banks" disabled>No banks available</SelectItem>
                       )}
                     </SelectContent>
                   </Select>
@@ -397,6 +505,15 @@ const PaymentAccountSetup: React.FC<PaymentAccountSetupProps> = ({ onSetupComple
                   </div>
                 </div>
               </div>
+
+              {verifyAccountMutation.isPending && (
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                    <p className="text-sm text-blue-800">Verifying account details...</p>
+                  </div>
+                </div>
+              )}
 
               {verifiedAccount && (
                 <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
@@ -430,7 +547,7 @@ const PaymentAccountSetup: React.FC<PaymentAccountSetupProps> = ({ onSetupComple
               <Button
                 type="submit"
                 className="w-full"
-                disabled={setupPaystackMutation.isPending || !verifiedAccount}
+                disabled={setupPaystackMutation.isPending || !verifiedAccount || !paystackForm.businessName}
               >
                 {setupPaystackMutation.isPending ? (
                   <>
@@ -438,7 +555,7 @@ const PaymentAccountSetup: React.FC<PaymentAccountSetupProps> = ({ onSetupComple
                     Setting up account...
                   </>
                 ) : (
-                  'Setup Bank Account'
+                  'Setup Bank Account (Free)'
                 )}
               </Button>
             </form>
@@ -496,9 +613,10 @@ const PaymentAccountSetup: React.FC<PaymentAccountSetupProps> = ({ onSetupComple
           <h4 className="font-medium text-blue-900 mb-2">Important Information:</h4>
           <ul className="text-sm text-blue-800 space-y-1">
             <li>• Payments from renters will be sent directly to your account</li>
-            <li>• A 5% platform fee will be deducted from each payment</li>
+            <li>• A 10% platform fee will be deducted from each payment (you receive 90%)</li>
             <li>• You can change your payment method anytime</li>
             <li>• All transactions are secure and encrypted</li>
+            <li>• Payment account setup is required before listing apartments</li>
           </ul>
         </div>
       </CardContent>

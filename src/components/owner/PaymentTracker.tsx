@@ -7,7 +7,7 @@ import { useAuth } from "@clerk/clerk-react";
 import { useQuery } from "@tanstack/react-query";
 import { bookingService } from "@/services/bookingService";
 import { DollarSign, TrendingUp, Calendar, CreditCard, Loader2, RefreshCw } from "lucide-react";
-import PaymentAccountSetup from "./PaymentAccountSetup";
+
 
 const PaymentTracker = () => {
   const [filterPeriod, setFilterPeriod] = useState("all");
@@ -63,8 +63,29 @@ const PaymentTracker = () => {
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
-      {/* Payment Account Setup */}
-      <PaymentAccountSetup />
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold">Payment History</h2>
+          <p className="text-muted-foreground">
+            Track all payments received from your rental bookings
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Select value={filterPeriod} onValueChange={setFilterPeriod}>
+            <SelectTrigger className="w-40">
+              <SelectValue placeholder="Filter period" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Time</SelectItem>
+              <SelectItem value="today">Today</SelectItem>
+              <SelectItem value="week">This Week</SelectItem>
+              <SelectItem value="month">This Month</SelectItem>
+              <SelectItem value="year">This Year</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -75,7 +96,7 @@ const PaymentTracker = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {isLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : `$${totalRevenue}`}
+              {isLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : `GHS ${totalRevenue}`}
             </div>
             <p className="text-xs text-muted-foreground">
               From {filteredPayments.length} transactions
@@ -90,7 +111,7 @@ const PaymentTracker = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {isLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : `$${averagePayment.toFixed(0)}`}
+              {isLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : `GHS ${averagePayment.toFixed(0)}`}
             </div>
             <p className="text-xs text-muted-foreground">
               Per booking
@@ -114,38 +135,7 @@ const PaymentTracker = () => {
         </Card>
       </div>
 
-      {/* Filter Section */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            Payment History
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => refetch()}
-                disabled={isLoading}
-                className="p-2 hover:bg-gray-100 rounded-md transition-colors"
-              >
-                {isLoading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <RefreshCw className="h-4 w-4" />
-                )}
-              </button>
-              <Select value={filterPeriod} onValueChange={setFilterPeriod}>
-                <SelectTrigger className="w-40">
-                  <SelectValue placeholder="Filter by period" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Time</SelectItem>
-                  <SelectItem value="today">Today</SelectItem>
-                  <SelectItem value="week">This Week</SelectItem>
-                  <SelectItem value="month">This Month</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </CardTitle>
-        </CardHeader>
-      </Card>
+
 
       {/* Payments Grid */}
       {isLoading ? (
@@ -173,7 +163,7 @@ const PaymentTracker = () => {
                 <div className="flex justify-between items-start">
                   <div>
                     <CardTitle className="text-lg font-semibold text-green-600">
-                      ${payment.totalAmount}
+                      GHS {payment.totalAmount}
                     </CardTitle>
                     <p className="text-sm text-gray-600">
                       {new Date(payment.createdAt).toLocaleDateString()}

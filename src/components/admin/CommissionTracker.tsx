@@ -54,6 +54,36 @@ const CommissionTracker = () => {
     },
   });
 
+  // Recalculate commissions function
+  const handleRecalculateCommissions = async () => {
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/admin/commissions/recalculate`, {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer test',
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        toast({
+          title: "Success",
+          description: "Commission statistics recalculated successfully",
+        });
+        refetch();
+        queryClient.invalidateQueries({ queryKey: ['admin-stats'] });
+      } else {
+        throw new Error('Failed to recalculate');
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to recalculate commission statistics",
+        variant: "destructive",
+      });
+    }
+  };
+
   const commissions = commissionsData?.commissions || [];
   const totalCommission = statsData?.totalCommission || 0;
   const paidCommission = statsData?.paidCommission || 0;
@@ -194,10 +224,16 @@ const CommissionTracker = () => {
             </SelectContent>
           </Select>
         </div>
-        <Button onClick={() => refetch()} disabled={isLoading}>
-          <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-          Refresh
-        </Button>
+        <div className="flex space-x-2">
+          <Button onClick={handleRecalculateCommissions} variant="outline">
+            <DollarSign className="h-4 w-4 mr-2" />
+            Recalculate
+          </Button>
+          <Button onClick={() => refetch()} disabled={isLoading}>
+            <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {/* Commission Insights */}

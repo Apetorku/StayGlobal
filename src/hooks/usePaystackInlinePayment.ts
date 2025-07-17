@@ -165,13 +165,17 @@ export const usePaystackInlinePayment = () => {
           onClose: testOnClose
         };
 
-        // Add subaccount configuration only if we have a subaccount
-        // Temporarily commented out to test basic functionality
-        // if (isSubaccountPayment) {
-        //   paymentConfig.subaccount = paymentData.subaccountCode;
-        //   paymentConfig.transaction_charge = platformFeeInKobo;
-        //   paymentConfig.bearer = 'account';
-        // }
+        // Add subaccount configuration for split payments
+        if (isSubaccountPayment && paymentData.subaccountCode) {
+          paymentConfig.subaccount = paymentData.subaccountCode;
+          paymentConfig.transaction_charge = platformFeeInKobo;
+          paymentConfig.bearer = 'subaccount'; // Owner pays transaction fees
+          console.log('💰 Split payment configured:', {
+            subaccount: paymentData.subaccountCode,
+            transaction_charge: platformFeeInKobo,
+            bearer: 'subaccount'
+          });
+        }
 
         console.log('🔧 Final payment config:', paymentConfig);
         console.log('🔧 PaystackPop available:', !!window.PaystackPop);

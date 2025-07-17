@@ -64,7 +64,7 @@ const CheckInSystem = () => {
       queryClient.invalidateQueries({ queryKey: ['owner-bookings'] });
       toast({
         title: "Success!",
-        description: `${updatedBooking.guestName} has been checked in successfully`,
+        description: `${updatedBooking.guestName || 'Guest'} has been checked in successfully`,
       });
     },
     onError: (error: any) => {
@@ -97,7 +97,7 @@ const CheckInSystem = () => {
       queryClient.invalidateQueries({ queryKey: ['owner-bookings'] });
       toast({
         title: "Success!",
-        description: `${updatedBooking.guestName} has been checked out successfully`,
+        description: `${updatedBooking.guestName || 'Guest'} has been checked out successfully`,
       });
     },
     onError: (error: Error) => {
@@ -146,7 +146,7 @@ const CheckInSystem = () => {
 
       toast({
         title: "Success!",
-        description: `${updatedBooking.guestName} has been ${statusMessages[status] || 'updated'}`,
+        description: `${updatedBooking.guestName || 'Guest'} has been ${statusMessages[status] || 'updated'}`,
       });
     } catch (error: any) {
       toast({

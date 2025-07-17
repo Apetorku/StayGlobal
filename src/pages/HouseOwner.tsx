@@ -12,7 +12,7 @@ import ListApartmentForm from "@/components/owner/ListApartmentForm";
 import CheckInSystem from "@/components/owner/CheckInSystem";
 import BookingTracker from "@/components/owner/BookingTracker";
 import PaymentTracker from "@/components/owner/PaymentTracker";
-import PaymentAccountSetup from "@/components/owner/PaymentAccountSetup";
+
 import OwnerChat from "@/components/owner/OwnerChat";
 import VerificationGate from "@/components/verification/VerificationGate";
 import NotificationCenter from "@/components/notifications/NotificationCenter";
@@ -47,19 +47,70 @@ const HouseOwner = () => {
     staleTime: 5 * 60 * 1000,
   });
 
+
+
+  // If no bookings data, let's try to get monthly earnings from a different source
+  const { data: monthlyEarningsData } = useQuery({
+    queryKey: ['monthly-earnings'],
+    queryFn: async () => {
+      try {
+        const token = await getToken();
+        // Try to get commission data for current user as a fallback
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/admin/commissions?limit=50`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (response.ok) {
+          const data = await response.json();
+          const currentMonth = new Date().getMonth();
+          const currentYear = new Date().getFullYear();
+
+          const monthlyTotal = data.commissions?.reduce((total: number, commission: any) => {
+            const commissionDate = new Date(commission.bookingDate);
+            if (commissionDate.getMonth() === currentMonth && commissionDate.getFullYear() === currentYear) {
+              return total + (commission.roomPrice || 0);
+            }
+            return total;
+          }, 0) || 0;
+
+
+          return monthlyTotal;
+        }
+        return 0;
+      } catch (error) {
+        console.error('Failed to fetch monthly earnings:', error);
+        return 0;
+      }
+    },
+    enabled: !bookingData?.bookings?.length // Only run if we don't have booking data
+  });
+
   // Calculate real stats
   const stats = {
     totalProperties: apartmentData?.apartments?.length || 0,
     activeBookings: bookingData?.bookings?.filter(b => b.bookingStatus === 'confirmed').length || 0,
-    monthlyEarnings: bookingData?.bookings?.reduce((total, booking) => {
-      const bookingDate = new Date(booking.createdAt);
-      const currentMonth = new Date().getMonth();
-      const currentYear = new Date().getFullYear();
-      if (bookingDate.getMonth() === currentMonth && bookingDate.getFullYear() === currentYear) {
-        return total + booking.totalAmount;
+    monthlyEarnings: (() => {
+      // If we have booking data, calculate from bookings
+      if (bookingData?.bookings?.length > 0) {
+        return bookingData.bookings.reduce((total, booking) => {
+          // Only count paid/completed bookings
+          if (booking.paymentStatus !== 'paid' && booking.paymentStatus !== 'completed') {
+            return total;
+          }
+
+          const bookingDate = new Date(booking.createdAt);
+          const currentMonth = new Date().getMonth();
+          const currentYear = new Date().getFullYear();
+
+          if (bookingDate.getMonth() === currentMonth && bookingDate.getFullYear() === currentYear) {
+            return total + (booking.totalAmount || 0);
+          }
+          return total;
+        }, 0);
       }
-      return total;
-    }, 0) || 0,
+
+      // Fallback: Use monthly earnings from commission data
+      return monthlyEarningsData || 0;
+    })(),
     totalGuests: bookingData?.bookings?.reduce((total, booking) => total + booking.guests, 0) || 0
   };
 
@@ -128,7 +179,7 @@ const HouseOwner = () => {
           <Card className="text-center">
             <CardHeader>
               <CardTitle className="text-3xl font-bold text-purple-600">
-                {isLoading ? <Loader2 className="h-8 w-8 animate-spin mx-auto" /> : `$${stats.monthlyEarnings}`}
+                {isLoading ? <Loader2 className="h-8 w-8 animate-spin mx-auto" /> : `GHS ${stats.monthlyEarnings}`}
               </CardTitle>
               <CardDescription>Monthly Earnings</CardDescription>
             </CardHeader>
@@ -194,27 +245,7 @@ const HouseOwner = () => {
           </TabsContent>
 
           <TabsContent value="payments" className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div>
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <DollarSign className="h-5 w-5" />
-                      Payment Account Setup
-                    </CardTitle>
-                    <CardDescription>
-                      Set up your payment account to receive rental payments directly from tenants
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <PaymentAccountSetup />
-                  </CardContent>
-                </Card>
-              </div>
-              <div>
-                <PaymentTracker />
-              </div>
-            </div>
+            <PaymentTracker />
           </TabsContent>
 
           <TabsContent value="chat" className="space-y-6">
