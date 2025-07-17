@@ -34,9 +34,7 @@ const AdminNotificationCenter: React.FC = () => {
     queryFn: async () => {
       const token = await getToken();
       if (!token) throw new Error('No authentication token');
-      console.log('🔍 Fetching ADMIN notifications...');
       const result = await notificationService.getAdminNotifications(token, showAll ? 50 : 10);
-      console.log('📬 Fetched ADMIN notifications:', result.length, result);
       return result;
     },
     refetchInterval: 60000, // Refetch every 60 seconds
@@ -183,16 +181,7 @@ const AdminNotificationCenter: React.FC = () => {
         </div>
       </CardHeader>
       <CardContent>
-        {/* Admin Debug Information */}
-        <div className="mb-4 p-2 bg-blue-100 rounded text-sm">
-          <strong>Admin Notifications Debug:</strong><br/>
-          Total admin notifications: {notifications.length}<br/>
-          Unread admin notifications: {unreadNotifications.length}<br/>
-          Loading: {isLoading ? 'Yes' : 'No'}<br/>
-          Error: {error ? 'Yes' : 'No'}<br/>
-          Show all: {showAll ? 'Yes' : 'No'}<br/>
-          Expected types: system_alert, new_apartment, new_booking, verification_submitted, admin_message, payment_issue
-        </div>
+
 
         {notifications.length === 0 ? (
           <div className="text-center py-8 text-gray-500">

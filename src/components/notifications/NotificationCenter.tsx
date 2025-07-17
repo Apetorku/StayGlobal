@@ -31,9 +31,7 @@ const NotificationCenter: React.FC = () => {
     queryFn: async () => {
       const token = await getToken();
       if (!token) throw new Error('No authentication token');
-      console.log('🔍 Fetching user notifications...');
       const result = await notificationService.getUserNotifications(token, showAll ? 50 : 10);
-      console.log('📬 Fetched notifications:', result.length, result);
       return result;
     },
     refetchInterval: 60000, // Refetch every 60 seconds
@@ -187,16 +185,7 @@ const NotificationCenter: React.FC = () => {
         </div>
       </CardHeader>
       <CardContent>
-        {/* User Debug Information */}
-        <div className="mb-4 p-2 bg-green-100 rounded text-sm">
-          <strong>User Notifications Debug:</strong><br/>
-          Total user notifications: {notifications.length}<br/>
-          Unread count: {unreadCount}<br/>
-          Loading: {isLoading ? 'Yes' : 'No'}<br/>
-          Error: {error ? 'Yes' : 'No'}<br/>
-          Show all: {showAll ? 'Yes' : 'No'}<br/>
-          Expected types: auto_checkout, booking_reminder, payment_received, new_message, checkout_reminder, new_booking
-        </div>
+
         <ScrollArea className="h-96">
           {notifications.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
